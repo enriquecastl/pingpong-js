@@ -1,3 +1,12 @@
+window.requestAnimFrame = (function(){
+  return  window.requestAnimationFrame       ||
+          window.webkitRequestAnimationFrame ||
+          window.mozRequestAnimationFrame    ||
+          function( callback ){
+            window.setTimeout(callback, 1000 / 60);
+          };
+})();
+
 module Drawing {
     export class Sprite {
         public x : number;
@@ -21,6 +30,7 @@ module Drawing {
         }
 
         draw(context) {
+
         }
     }
 
@@ -87,6 +97,7 @@ module Models {
 
     export class Player extends GameObject {
         MIN_Y : number = 2;
+        VELOCITY : number =  500;
 
         constructor() {
             super(0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
@@ -96,14 +107,30 @@ module Models {
 
 
             $(document).bind('keypress.a', function(){
-                var move = (that.y - 20 < that.MIN_Y) ? 0 : -20;
+                var moveDistance = that.getDistance();
+                var move = (that.y - moveDistance < that.MIN_Y) ? 0 : -moveDistance;
                 that.move(0, move);
             });
 
             $(document).bind('keypress.s', function(){
-                var move = (that.bottom() + 20 > Game.CANVAS_HEIGHT - 2) ? 0 : 20;
+                var moveDistance = that.getDistance();
+                var move = (that.bottom() + moveDistance > Game.CANVAS_HEIGHT - 2) ? 0 : moveDistance;
                 that.move(0, move);
             });
+        }
+
+        getDistance() : number {
+            return (Game.getElapsedTime() / 1000) * this.VELOCITY;
+        }
+    }
+
+    export class Opponent extends GameObject {
+
+        constructor() {
+            super(0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
+            var that = this;
+            this.setSprite(new Drawing.Paddle());
+            this.move(Game.CANVAS_WIDTH-Drawing.Paddle.PADDLE_WIDTH - 1,2);
         }
     }
 
@@ -127,9 +154,11 @@ module Models {
             if(object == null) return;
 
             this.objects.push(object);
+
+            return this;
         }
 
-        public getObjects() : GameObject[] {
+        public getObjects() {
             return this.objects;
         }
     }
@@ -138,22 +167,40 @@ module Models {
 module Game {
     export var CANVAS_WIDTH : number = 480;
     export var CANVAS_HEIGHT : number = 320;
-    var FPS : number = 60;
-    var context;
+    var context,
+        lastTime,
+        currentTime,
+        elapsedTime : number = 0;
 
+    export function getElapsedTime(){
+        return elapsedTime;
+    }
 
     export function init() {
+        var player = new Models.Player(),
+            opponent = new Models.Opponent(),
+            objectRepo = Models.ObjectRepository.getInstance();
+        
+        objectRepo.addObject(player).addObject(opponent);
+        
         context = $("#canvas")
         .attr("height", CANVAS_HEIGHT)
         .attr("width", CANVAS_WIDTH)[0].getContext("2d");
 
-        var player = new Models.Player();
-        Models.ObjectRepository.getInstance().addObject(player);
+        lastTime = currentTime = Date.now();
 
-        setInterval(function() {
+        function run(){
+            lastTime = currentTime;
+            currentTime = Date.now();
+            elapsedTime = currentTime - lastTime;
+
             update();
             draw();
-        }, 1000 / FPS);
+            requestAnimFrame(run);
+
+        }
+
+        requestAnimFrame(run);
     }
 
     function update() {
@@ -176,7 +223,6 @@ module Game {
             if(sprite)
                 sprite.draw(context);
         }
-
     }
 }
 

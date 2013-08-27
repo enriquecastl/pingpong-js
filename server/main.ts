@@ -154,6 +154,8 @@ module Actions {
     export class ConnectToGame extends Action {
         constructor(data) {
             super(data);
+
+            this.type = "connectToGame";
         }
 
         execute(who) {
@@ -167,7 +169,7 @@ module Actions {
                 if(!game)
                     return ActionRegistry.newAction('connectToGame', {
                         me : who,
-                        error : "Didn't find a game with that ID";
+                        error : "Couldn't find a game with that ID"
                     });
             }else{
                 game = Models.Game.newGame();
@@ -176,7 +178,7 @@ module Actions {
             if(!_.isString(nickname) || nickname.length < 4)
                 return ActionRegistry.newAction('connectToGame', {
                     me : who,
-                    error : "Your nickname should have at least 4 characters";
+                    error : "Your nickname should have at least 4 characters"
                 });
 
             who.nickname = nickname;

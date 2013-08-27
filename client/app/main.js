@@ -163,18 +163,49 @@ var Models;
 
 var GameServerConnection = (function () {
     function GameServerConnection() {
-        this.connect();
+        this.messageCallbacks = {};
     }
-    GameServerConnection.prototype.connect = function () {
+    GameServerConnection.getInstance = function () {
+        if (GameServerConnection.instance == null)
+            GameServerConnection.instance = new GameServerConnection();
+
+        return GameServerConnection.instance;
+    };
+
+    GameServerConnection.prototype.connect = function (gameId, nickname) {
+        var that = this;
+
         this.socket = io.connect('http://localhost:8000');
         this.socket.on('message', function (message) {
-            console.log(message);
+            var callbackName = message.type;
+
+            if (message.data.error)
+                callbackName = callbackName.concat("Error");
+
+            _.each(that.messageCallbacks[callbackName], function (callback) {
+                callback(message);
+            });
         });
 
         this.socket.emit('message', {
             action: 'connectToGame',
-            data: {}
+            data: {
+                nickname: nickname,
+                gameId: gameId
+            }
         });
+    };
+
+    GameServerConnection.prototype.addActionListener = function (actionType, callback) {
+        actionType = actionType || "";
+
+        if (!_.isFunction(callback))
+            return;
+
+        if (!_.isArray(this.messageCallbacks[actionType]))
+            this.messageCallbacks[actionType] = [];
+
+        this.messageCallbacks[actionType].push(callback);
     };
     return GameServerConnection;
 })();
@@ -191,26 +222,33 @@ var Game;
     }
     Game.getElapsedTime = getElapsedTime;
 
-    function init() {
-        var player = new Models.Player(), opponent = new Models.Opponent(), objectRepo = Models.ObjectRepository.getInstance();
+    function init(gameId, nickname) {
+        var objectRepo = Models.ObjectRepository.getInstance(), gameServer = GameServerConnection.getInstance();
 
         context = $("#canvas")[0].getContext("2d");
 
-        lastTime = currentTime = Date.now();
+        gameServer.addActionListener("connectToGame", function (action) {
+            run();
+        });
 
-        function run() {
+        gameServer.connect(gameId, nickname);
+    }
+    Game.init = init;
+
+    function run() {
+        lastTime = currentTime = Date.now();
+        requestAnimFrame(runLoop);
+
+        function runLoop() {
             lastTime = currentTime;
             currentTime = Date.now();
             elapsedTime = currentTime - lastTime;
 
             update();
             draw();
-            requestAnimFrame(run);
+            requestAnimFrame(runLoop);
         }
-
-        requestAnimFrame(run);
     }
-    Game.init = init;
 
     function update() {
         var objects = Models.ObjectRepository.getInstance().getObjects();
@@ -237,7 +275,7 @@ var Game;
 
 var GameUI = (function () {
     function GameUI() {
-        var that = this;
+        var that = this, existingGame = true;
 
         this.$canvas = $("#canvas").width($(window).width()).height($(window).height() - 30);
         this.$gameId = $("#gameId");
@@ -245,18 +283,54 @@ var GameUI = (function () {
         this.$connect = $("#connect");
         this.$newGame = $("#newGame");
         this.$existingGame = $("#existingGame");
+        this.$connectMenu = $("#connect-menu");
+        this.$gameInfo = $("#game-info");
+        this.$error = $("#error");
+
+        $(document).find("button").on('click', function () {
+            that.$error.text("");
+        });
 
         this.$newGame.on('click', function () {
             that.$gameId.removeAttr("required").hide();
             that.$newGame.hide();
             that.$existingGame.show();
+            existingGame = false;
         });
 
         this.$existingGame.on('click', function () {
             that.$gameId.attr("required", "required").show();
             that.$newGame.show();
             that.$existingGame.hide();
+            existingGame = true;
         });
+
+        this.$connect.on('click', function (e) {
+            e.preventDefault();
+            Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val());
+        });
+
+        var gameServer = GameServerConnection.getInstance();
+
+        gameServer.addActionListener('connectToGameError', function (action) {
+            processError(action.data);
+        });
+
+        gameServer.addActionListener('connectToGame', function (action) {
+            that.$connectMenu.hide();
+            that.$gameInfo.find(".gameId").text(action.data.game.id);
+            that.$gameInfo.find(".nickname").text(action.data.me.nickname);
+            that.$gameInfo.show();
+        });
+
+        function processError(actionData) {
+            if (_.isString(actionData.error)) {
+                that.$error.text(actionData.error);
+                return true;
+            }
+
+            return false;
+        }
     }
     return GameUI;
 })();

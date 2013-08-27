@@ -33,6 +33,28 @@
                 display : none;
             }
 
+            #connect-menu {
+                float: left;
+            }
+
+            #game-info {
+                display: none;
+                font-size: 0.9em;
+            }
+
+            #game-info label {
+                font-weight: bold;
+            }
+
+            #error {
+                color: red;
+                font-size: 0.9em;
+                float: left;
+                margin-left: 5px;
+                position: relative;
+                top:3px;
+            }
+
         </style>
     </head>
     <body>
@@ -46,12 +68,15 @@
                 <button type="button" class="hide" id="existingGame">Existing Game</button>
             </form>
             <div id="game-info">
-
+                <label>Game ID:</label> <span class="gameId"></span>
+                <label>Nickname:</label> <span class="nickname"></span>
             </div>
+            <span id="error"></span>
         </div>
         <canvas id="canvas"></canvas>
         <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
         <script src="node_modules/socket.io-client/dist/socket.io.min.js"></script>
+        <script src="node_modules/underscore/underscore.js"></script>
         <script src="client/lib/jquery.hotkeys.js"></script>
         <script src="client/app/main.js"></script>
     </body>

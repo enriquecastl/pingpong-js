@@ -165,11 +165,29 @@ module Models {
 }
 
 class GameServerConnection {
+    static instance;
+    static getInstance() {
+        if(GameServerConnection.instance == null)
+            GameServerConnection.instance = new GameServerConnection();
 
-    static connect(gameId, nickname) {
+        return GameServerConnection.instance;
+    }
+
+    messageCallbacks = {};
+
+    connect(gameId, nickname) {
+        var that = this;
+
         this.socket = io.connect('http://localhost:8000');
         this.socket.on('message', function(message){
-            console.log(message);
+            var callbackName = message.type;
+
+            if(message.data.error)
+                callbackName = callbackName.concat("Error")
+
+            _.each(that.messageCallbacks[callbackName], function(callback){
+                callback(message);
+            });
         });
 
         this.socket.emit('message', {
@@ -179,6 +197,17 @@ class GameServerConnection {
                 gameId : gameId
             }
         });
+    }
+
+    addActionListener(actionType, callback){
+        actionType = actionType || "";
+
+        if(!_.isFunction(callback)) return;
+
+        if(!_.isArray(this.messageCallbacks[actionType]))
+            this.messageCallbacks[actionType] = [];
+
+        this.messageCallbacks[actionType].push(callback); 
     }
 }
 
@@ -196,13 +225,19 @@ module Game {
     }
 
     export function init(gameId, nickname) {
-        var objectRepo = Models.ObjectRepository.getInstance();
+        var objectRepo = Models.ObjectRepository.getInstance(),
+            gameServer = GameServerConnection.getInstance();
         
         context = $("#canvas")[0].getContext("2d");
-        GameServerConnection.connect(gameId, nickname);
+
+        gameServer.addActionListener("connectToGame", function(action){
+            run();
+        });
+
+        gameServer.connect(gameId, nickname);
     }
 
-    run() {
+    function run() {
         lastTime = currentTime = Date.now();
         requestAnimFrame(runLoop);
 
@@ -217,14 +252,14 @@ module Game {
         }
     }
 
-    update() {
+    function update() {
         var objects = Models.ObjectRepository.getInstance().getObjects();
 
         for(var i = 0; i < objects.length; i++)
             objects[i].update();
     }
 
-    draw() {
+    function draw() {
         context.clearRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT);
         context.fillStyle = "#000";
         context.fillRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -247,10 +282,11 @@ class GameUI {
     $connect;
     $newGame;
     $existingGame;
+    $error;
 
     constructor() {
         var that = this,
-            existingGame = false;
+            existingGame = true;
 
         this.$canvas = $("#canvas").width($(window).width()).height($(window).height() - 30);
         this.$gameId = $("#gameId");
@@ -258,7 +294,14 @@ class GameUI {
         this.$connect = $("#connect");
         this.$newGame = $("#newGame");
         this.$existingGame = $("#existingGame");
+        this.$connectMenu = $("#connect-menu");
+        this.$gameInfo = $("#game-info");
+        this.$error = $("#error");
 
+        $(document).find("button").on('click', function(){
+            that.$error.text("");
+        });
+ 
         this.$newGame.on('click', function(){
             that.$gameId.removeAttr("required").hide();
             that.$newGame.hide();
@@ -273,10 +316,33 @@ class GameUI {
             existingGame = true;
         });
 
-        $this.$connect.on('click', function(){
-            $(this).preventDefault();
-            Game.init((existingGame ? $gameId.val() : null), $nickname.val());
+        this.$connect.on('click', function(e){
+            e.preventDefault();
+            Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val());
         });
+
+        var gameServer = GameServerConnection.getInstance();
+
+        gameServer.addActionListener('connectToGameError', function(action){
+            processError(action.data);
+        });
+
+        gameServer.addActionListener('connectToGame', function(action){
+            that.$connectMenu.hide();
+            that.$gameInfo.find(".gameId").text(action.data.game.id);
+            that.$gameInfo.find(".nickname").text(action.data.me.nickname);
+            that.$gameInfo.show();
+
+        });
+
+        function processError(actionData){
+            if(_.isString(actionData.error)){
+                that.$error.text(actionData.error)
+                return true;
+            }
+
+            return false;
+        }
     }
 }
 

@@ -161,10 +161,29 @@ var Models;
     Models.ObjectRepository = ObjectRepository;
 })(Models || (Models = {}));
 
+var GameServerConnection = (function () {
+    function GameServerConnection() {
+        this.connect();
+    }
+    GameServerConnection.prototype.connect = function () {
+        this.socket = io.connect('http://localhost:8000');
+        this.socket.on('message', function (message) {
+            console.log(message);
+        });
+
+        this.socket.emit('message', {
+            action: 'connectToGame',
+            data: {}
+        });
+    };
+    return GameServerConnection;
+})();
+
 var Game;
 (function (Game) {
-    Game.CANVAS_WIDTH = 480;
-    Game.CANVAS_HEIGHT = 320;
+    Game.CANVAS_WIDTH = $("#canvas").width();
+    Game.CANVAS_HEIGHT = $("#canvas").height();
+
     var context, lastTime, currentTime, elapsedTime = 0;
 
     function getElapsedTime() {
@@ -175,9 +194,7 @@ var Game;
     function init() {
         var player = new Models.Player(), opponent = new Models.Opponent(), objectRepo = Models.ObjectRepository.getInstance();
 
-        objectRepo.addObject(player).addObject(opponent);
-
-        context = $("#canvas").attr("height", Game.CANVAS_HEIGHT).attr("width", Game.CANVAS_WIDTH)[0].getContext("2d");
+        context = $("#canvas")[0].getContext("2d");
 
         lastTime = currentTime = Date.now();
 
@@ -218,4 +235,30 @@ var Game;
     }
 })(Game || (Game = {}));
 
-Game.init();
+var GameUI = (function () {
+    function GameUI() {
+        var that = this;
+
+        this.$canvas = $("#canvas").width($(window).width()).height($(window).height() - 30);
+        this.$gameId = $("#gameId");
+        this.$nickname = $("#nickname");
+        this.$connect = $("#connect");
+        this.$newGame = $("#newGame");
+        this.$existingGame = $("#existingGame");
+
+        this.$newGame.on('click', function () {
+            that.$gameId.removeAttr("required").hide();
+            that.$newGame.hide();
+            that.$existingGame.show();
+        });
+
+        this.$existingGame.on('click', function () {
+            that.$gameId.attr("required", "required").show();
+            that.$newGame.show();
+            that.$existingGame.hide();
+        });
+    }
+    return GameUI;
+})();
+
+new GameUI();

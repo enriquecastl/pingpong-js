@@ -2,8 +2,53 @@
 <html>
     <head>
         <title>Pong!</title>
+        <style type="text/css">
+            *, *:before, *:after {
+                -moz-box-sizing: border-box; 
+                -webkit-box-sizing: border-box; 
+                box-sizing: border-box;
+            }
+
+            body {
+                margin : 0;
+                padding: 0;
+                font-family: helvetica;
+            }
+
+            #canvas {
+                display: block;
+                padding: 0;
+                margin: 0;
+            }
+
+            #menu {
+                box-sizing: border-box;
+                background: #ddd;
+                height : 30px;
+                padding: 5px 3px;
+                width:100%;
+            }
+
+            .hide {
+                display : none;
+            }
+
+        </style>
     </head>
     <body>
+        <div id="menu">
+            <form id="connect-menu">
+                Connect to game 
+                <input required placeholder="Game ID" type="text" id="gameId" />
+                <input required placeholder="Nickname" type="text" id="nickname" />
+                <button type="submit" id="connect">Connect</button>
+                <button type="button" id="newGame">New Game</button>
+                <button type="button" class="hide" id="existingGame">Existing Game</button>
+            </form>
+            <div id="game-info">
+
+            </div>
+        </div>
         <canvas id="canvas"></canvas>
         <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
         <script src="node_modules/socket.io-client/dist/socket.io.min.js"></script>

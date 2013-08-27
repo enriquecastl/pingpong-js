@@ -164,9 +164,28 @@ module Models {
     }
 }
 
+class GameServerConnection {
+
+    static connect(gameId, nickname) {
+        this.socket = io.connect('http://localhost:8000');
+        this.socket.on('message', function(message){
+            console.log(message);
+        });
+
+        this.socket.emit('message', {
+            action : 'connectToGame',
+            data : {
+                nickname : nickname,
+                gameId : gameId
+            }
+        });
+    }
+}
+
 module Game {
-    export var CANVAS_WIDTH : number = 480;
-    export var CANVAS_HEIGHT : number = 320;
+    export var CANVAS_WIDTH : number = $("#canvas").width();
+    export var CANVAS_HEIGHT : number = $("#canvas").height();
+
     var context,
         lastTime,
         currentTime,
@@ -176,41 +195,36 @@ module Game {
         return elapsedTime;
     }
 
-    export function init() {
-        var player = new Models.Player(),
-            opponent = new Models.Opponent(),
-            objectRepo = Models.ObjectRepository.getInstance();
+    export function init(gameId, nickname) {
+        var objectRepo = Models.ObjectRepository.getInstance();
         
-        objectRepo.addObject(player).addObject(opponent);
-        
-        context = $("#canvas")
-        .attr("height", CANVAS_HEIGHT)
-        .attr("width", CANVAS_WIDTH)[0].getContext("2d");
+        context = $("#canvas")[0].getContext("2d");
+        GameServerConnection.connect(gameId, nickname);
+    }
 
+    run() {
         lastTime = currentTime = Date.now();
+        requestAnimFrame(runLoop);
 
-        function run(){
+        function runLoop(){
             lastTime = currentTime;
             currentTime = Date.now();
             elapsedTime = currentTime - lastTime;
 
             update();
             draw();
-            requestAnimFrame(run);
-
+            requestAnimFrame(runLoop);
         }
-
-        requestAnimFrame(run);
     }
 
-    function update() {
+    update() {
         var objects = Models.ObjectRepository.getInstance().getObjects();
 
         for(var i = 0; i < objects.length; i++)
             objects[i].update();
     }
 
-    function draw() {
+    draw() {
         context.clearRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT);
         context.fillStyle = "#000";
         context.fillRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -226,4 +240,44 @@ module Game {
     }
 }
 
-Game.init();
+class GameUI {
+    $canvas;
+    $gameId;
+    $nickname;
+    $connect;
+    $newGame;
+    $existingGame;
+
+    constructor() {
+        var that = this,
+            existingGame = false;
+
+        this.$canvas = $("#canvas").width($(window).width()).height($(window).height() - 30);
+        this.$gameId = $("#gameId");
+        this.$nickname = $("#nickname");
+        this.$connect = $("#connect");
+        this.$newGame = $("#newGame");
+        this.$existingGame = $("#existingGame");
+
+        this.$newGame.on('click', function(){
+            that.$gameId.removeAttr("required").hide();
+            that.$newGame.hide();
+            that.$existingGame.show();
+            existingGame = false;
+        });
+
+        this.$existingGame.on('click', function(){
+            that.$gameId.attr("required", "required").show();
+            that.$newGame.show();
+            that.$existingGame.hide();
+            existingGame = true;
+        });
+
+        $this.$connect.on('click', function(){
+            $(this).preventDefault();
+            Game.init((existingGame ? $gameId.val() : null), $nickname.val());
+        });
+    }
+}
+
+new GameUI();

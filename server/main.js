@@ -21,12 +21,27 @@ var Models;
             this.id = gameId;
         }
         Game.prototype.addPlayer = function (player) {
-            this.players.push(player);
+            var registry = Actions.ActionRegistry;
+            players = this.players;
+
+            console.log(player);
+
+            this.notifyAll(registry.newAction("newOpponent", {
+                opponent: [player]
+            }), player);
+
+            player.getActionHandler().sendAction(registry.newAction("newOpponent", {
+                opponent: players
+            }));
+
+            players.push(player);
         };
 
-        Game.prototype.notifyAll = function (action) {
+        Game.prototype.notifyAll = function (action, except) {
             _.each(this.players, function (player) {
-                player.actionHandler.sendAction(action);
+                if (player != except) {
+                    player.getActionHandler().sendAction(action);
+                }
             });
         };
 
@@ -40,6 +55,7 @@ var Models;
 
         Game.newGame = function () {
             game = new Game(uuid.v4());
+            Game.games.push(game);
             return game;
         };
 
@@ -64,7 +80,12 @@ var Models;
     var Player = (function () {
         function Player(actionHandler) {
             var player = this;
+
             this.playerId = uuid.v4();
+
+            this.getActionHandler = function () {
+                return actionHandler;
+            };
 
             actionHandler.receiveAction(function (action) {
                 actionHandler.sendAction(action.execute(player));
@@ -72,6 +93,10 @@ var Models;
         }
         Player.prototype.getGame = function () {
             return Game.findByPlayer(this);
+        };
+
+        Player.prototype.toJson = function () {
+            return _.omit(this, 'actionHandler');
         };
         return Player;
     })();
@@ -118,7 +143,7 @@ var Actions;
                 return actionType === type;
             });
 
-            return (action) ? new action(data) : null;
+            return (action) ? new action(data) : new Action(type, data);
         };
 
         ActionRegistry.registerAction = function (actionType, action) {
@@ -132,11 +157,12 @@ var Actions;
     Actions.ActionRegistry = ActionRegistry;
 
     var Action = (function () {
-        function Action(data) {
+        function Action(type, data) {
             if (!_.isObject(data))
                 throw "Please pass valid data to the action";
 
             this.data = data || {};
+            this.type = type;
         }
         Action.prototype.getType = function () {
             return "";
@@ -166,12 +192,12 @@ var Actions;
     var ConnectToGame = (function (_super) {
         __extends(ConnectToGame, _super);
         function ConnectToGame(data) {
-            _super.call(this, data);
+            _super.call(this, null, data);
 
             this.type = "connectToGame";
         }
         ConnectToGame.prototype.execute = function (who) {
-            var game, gameId = this.data.gameId, nickname = this.data.nickname;
+            var game, gameId = this.data.gameId, nickname = this.data.nickname, opponent;
 
             if (_.isString(gameId)) {
                 game = Models.Game.get(gameId);
@@ -217,6 +243,7 @@ var GameServer = (function () {
         this.fs = require('fs');
         this.players = [];
         var that = GameServer.that = this;
+
         this.app.listen(8000);
         this.io.sockets.on('connection', function (socket) {
             var player = new Models.Player(new Actions.ActionHandler(socket));

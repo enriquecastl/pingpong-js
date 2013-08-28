@@ -19,12 +19,27 @@ module Models {
         }
 
         addPlayer(player : Player) {
-            this.players.push(player);
+            var registry = Actions.ActionRegistry
+                players = this.players;
+
+            console.log(player);
+
+            this.notifyAll(registry.newAction("newOpponent", {
+                opponent : [player]
+            }), player);
+
+            player.getActionHandler().sendAction(registry.newAction("newOpponent", {
+                opponent : players
+            }));
+
+            players.push(player);
         }
 
-        notifyAll(action : Action) {
+        notifyAll(action : Action, except : Player) {
             _.each(this.players, function(player){
-                player.actionHandler.sendAction(action);
+                if(player != except){
+                    player.getActionHandler().sendAction(action);
+                }
             });
         }
 
@@ -38,19 +53,20 @@ module Models {
 
         static newGame(){
             game = new Game(uuid.v4());
+            Game.games.push(game);
             return game;
         }
 
         static findByPlayer(player : Player) {
-            return _.find(Game.games, function(game){
-                return _.some(game.players, function(p) {
+            return _.find(Game.games, (game) => {
+                return _.some(game.players, (p) => {
                     return p == player;
                 });
             });
         }
 
         static get(gameId : string) {
-            return _.find(Game.games, function(game){
+            return _.find(Game.games, (game) => {
                 return game.id === gameId;
             });
         }
@@ -60,7 +76,12 @@ module Models {
 
         constructor(actionHandler : Actions.ActionHandler) {
             var player = this;
+
             this.playerId = uuid.v4();
+
+            this.getActionHandler = () => {
+                return actionHandler;
+            }
 
             actionHandler.receiveAction(function(action) {
                 actionHandler.sendAction(action.execute(player));
@@ -69,6 +90,10 @@ module Models {
 
         getGame() {
             return Game.findByPlayer(this);
+        }
+
+        toJson() {
+            return _.omit(this, 'actionHandler');
         }
     }
 }
@@ -111,7 +136,7 @@ module Actions {
                 return actionType === type;
             });
 
-            return (action) ? new action(data) : null;
+            return (action) ? new action(data) : new Action(type, data);
         }
 
         static registerAction(actionType : string, action : Action) {
@@ -121,11 +146,12 @@ module Actions {
     }
 
     export class Action {
-        constructor(data) {
+        constructor(type, data) {
             if(!_.isObject(data))
                 throw "Please pass valid data to the action"
 
             this.data = data || {};
+            this.type = type;
         }
 
         getType() {
@@ -153,7 +179,7 @@ module Actions {
 
     export class ConnectToGame extends Action {
         constructor(data) {
-            super(data);
+            super(null, data);
 
             this.type = "connectToGame";
         }
@@ -161,7 +187,8 @@ module Actions {
         execute(who) {
             var game,
                 gameId = this.data.gameId,
-                nickname = this.data.nickname;
+                nickname = this.data.nickname,
+                opponent;
 
             if(_.isString(gameId)){
                 game = Models.Game.get(gameId);
@@ -171,6 +198,7 @@ module Actions {
                         me : who,
                         error : "Couldn't find a game with that ID"
                     });
+
             }else{
                 game = Models.Game.newGame();
             }
@@ -206,6 +234,7 @@ class GameServer {
 
     constructor(){
         var that = GameServer.that = this;
+
         this.app.listen(8000);
         this.io.sockets.on('connection', function(socket) {
             var player = new Models.Player(new Actions.ActionHandler(socket));

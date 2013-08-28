@@ -13,10 +13,10 @@
                 margin : 0;
                 padding: 0;
                 font-family: helvetica;
+                background: #000;
             }
 
             #canvas {
-                display: block;
                 padding: 0;
                 margin: 0;
             }
@@ -73,7 +73,8 @@
             </div>
             <span id="error"></span>
         </div>
-        <canvas id="canvas"></canvas>
+        <div id="canvas-container">
+        </div>
         <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
         <script src="node_modules/socket.io-client/dist/socket.io.min.js"></script>
         <script src="node_modules/underscore/underscore.js"></script>

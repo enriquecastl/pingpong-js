@@ -99,12 +99,12 @@ module Models {
         MIN_Y : number = 2;
         VELOCITY : number =  500;
 
-        constructor() {
+        constructor(data) {
             super(0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
             var that = this;
             this.setSprite(new Drawing.Paddle());
             this.move(2,2);
-
+            _.extend(this, data);
 
             $(document).bind('keypress.a', function(){
                 var moveDistance = that.getDistance();
@@ -212,12 +212,14 @@ class GameServerConnection {
 }
 
 module Game {
-    export var CANVAS_WIDTH : number = $("#canvas").width();
-    export var CANVAS_HEIGHT : number = $("#canvas").height();
+    export var CANVAS_WIDTH : number;
+    export var CANVAS_HEIGHT : number;
 
     var context,
         lastTime,
         currentTime,
+        player,
+        opponent,
         elapsedTime : number = 0;
 
     export function getElapsedTime(){
@@ -227,11 +229,20 @@ module Game {
     export function init(gameId, nickname) {
         var objectRepo = Models.ObjectRepository.getInstance(),
             gameServer = GameServerConnection.getInstance();
+
+        CANVAS_WIDTH =  $("#canvas").width();
+        CANVAS_HEIGHT = $("#canvas").height();
         
         context = $("#canvas")[0].getContext("2d");
 
         gameServer.addActionListener("connectToGame", function(action){
+            objectRepo.addObject(new Models.Player(action.data.me));
             run();
+        });
+
+        gameServer.addActionListener("newOpponent", function(action){
+            if(action.data.opponent.length == 0) return;
+            objectRepo.addObject(new Models.Opponent(action.data.opponent[0]));
         });
 
         gameServer.connect(gameId, nickname);
@@ -276,7 +287,7 @@ module Game {
 }
 
 class GameUI {
-    $canvas;
+    $canvasContainer;
     $gameId;
     $nickname;
     $connect;
@@ -288,7 +299,7 @@ class GameUI {
         var that = this,
             existingGame = true;
 
-        this.$canvas = $("#canvas").width($(window).width()).height($(window).height() - 30);
+        this.$canvasContainer = $("#canvas-container");
         this.$gameId = $("#gameId");
         this.$nickname = $("#nickname");
         this.$connect = $("#connect");
@@ -297,6 +308,12 @@ class GameUI {
         this.$connectMenu = $("#connect-menu");
         this.$gameInfo = $("#game-info");
         this.$error = $("#error");
+
+        $("<canvas>")
+        .attr("id", "canvas")
+        .width($(window).width())
+        .height($(window).height() - 30)
+        .appendTo(this.$canvasContainer);
 
         $(document).find("button").on('click', function(){
             that.$error.text("");

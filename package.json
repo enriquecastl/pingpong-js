@@ -1,0 +1,18 @@
+{
+  "name": "PingPong",
+  "version": "0.0.1",
+  "description": "Online Ping Pong Game using socket.io and canvas",
+  "main": "index.js",
+  "dependencies": {
+    "node-uuid": "~1.4.1",
+    "socket.io": "~0.9.16",
+    "underscore": "~1.5.1",
+    "socket.io-client": "~0.9.16"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "BSD"
+}

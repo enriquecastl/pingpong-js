@@ -1,8 +1,12 @@
-var _ = require('underscore')
-    uuid = require('node-uuid');
+/// <reference path="../d.ts/DefinitelyTyped/node/node.d.ts" />
+/// <reference path="../d.ts/DefinitelyTyped/underscore/underscore.d.ts" />
+
+
+var _ = require('underscore');
+var uuid = require('node-uuid');
 
 module Models {
-
+ 
     export class Game {
         id : string;
         players = [];
@@ -22,8 +26,6 @@ module Models {
             var registry = Actions.ActionRegistry
                 players = this.players;
 
-            console.log(player);
-
             this.notifyAll(registry.newAction("newOpponent", {
                 opponent : [player]
             }), player);
@@ -32,6 +34,7 @@ module Models {
                 opponent : players
             }));
 
+            player.gameId = this.id;
             players.push(player);
         }
 
@@ -84,7 +87,10 @@ module Models {
             }
 
             actionHandler.receiveAction(function(action) {
-                actionHandler.sendAction(action.execute(player));
+                var result = action.execute(player);
+
+                if(_.isObject(result))
+                    actionHandler.sendAction(result);
             });
         }
 
@@ -224,6 +230,21 @@ module Actions {
     }
 
     ActionRegistry.registerAction("connectToGame", ConnectToGame);
+
+    export class PlayerMoved extends Action {
+        constructor(data) {
+            super(null, data);
+
+            this.type = "playerMoved";
+        }
+
+        execute(who) {
+            var game = Models.Game.get(who.gameId);
+            game.notifyAll(ActionRegistry.newAction('opponentMoved', this.data), who);
+        }
+    }
+
+    ActionRegistry.registerAction("playerMoved", PlayerMoved);
 }
 
 class GameServer {

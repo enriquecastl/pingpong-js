@@ -5,7 +5,7 @@ var __extends = this.__extends || function (d, b) {
     d.prototype = new __();
 };
 var _ = require('underscore');
-uuid = require('node-uuid');
+var uuid = require('node-uuid');
 
 var Models;
 (function (Models) {
@@ -24,8 +24,6 @@ var Models;
             var registry = Actions.ActionRegistry;
             players = this.players;
 
-            console.log(player);
-
             this.notifyAll(registry.newAction("newOpponent", {
                 opponent: [player]
             }), player);
@@ -34,6 +32,7 @@ var Models;
                 opponent: players
             }));
 
+            player.gameId = this.id;
             players.push(player);
         };
 
@@ -88,7 +87,10 @@ var Models;
             };
 
             actionHandler.receiveAction(function (action) {
-                actionHandler.sendAction(action.execute(player));
+                var result = action.execute(player);
+
+                if (_.isObject(result))
+                    actionHandler.sendAction(result);
             });
         }
         Player.prototype.getGame = function () {
@@ -234,6 +236,23 @@ var Actions;
     Actions.ConnectToGame = ConnectToGame;
 
     ActionRegistry.registerAction("connectToGame", ConnectToGame);
+
+    var PlayerMoved = (function (_super) {
+        __extends(PlayerMoved, _super);
+        function PlayerMoved(data) {
+            _super.call(this, null, data);
+
+            this.type = "playerMoved";
+        }
+        PlayerMoved.prototype.execute = function (who) {
+            var game = Models.Game.get(who.gameId);
+            game.notifyAll(ActionRegistry.newAction('opponentMoved', this.data), who);
+        };
+        return PlayerMoved;
+    })(Action);
+    Actions.PlayerMoved = PlayerMoved;
+
+    ActionRegistry.registerAction("playerMoved", PlayerMoved);
 })(Actions || (Actions = {}));
 
 var GameServer = (function () {

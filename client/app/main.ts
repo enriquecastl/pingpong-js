@@ -101,7 +101,9 @@ module Models {
 
         constructor(data) {
             super(0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
-            var that = this;
+            var that = this,
+                serverConn = GameServerConnection.getInstance();
+
             this.setSprite(new Drawing.Paddle());
             this.move(2,2);
             _.extend(this, data);
@@ -110,12 +112,14 @@ module Models {
                 var moveDistance = that.getDistance();
                 var move = (that.y - moveDistance < that.MIN_Y) ? 0 : -moveDistance;
                 that.move(0, move);
+                serverConn.sendMoveMessage(0, move);
             });
 
             $(document).bind('keypress.s', function(){
                 var moveDistance = that.getDistance();
                 var move = (that.bottom() + moveDistance > Game.CANVAS_HEIGHT - 2) ? 0 : moveDistance;
                 that.move(0, move);
+                serverConn.sendMoveMessage(0, move);
             });
         }
 
@@ -126,11 +130,18 @@ module Models {
 
     export class Opponent extends GameObject {
 
-        constructor() {
+        constructor(data) {
             super(0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
-            var that = this;
+            var that = this,
+                serverConn = GameServerConnection.getInstance();
             this.setSprite(new Drawing.Paddle());
             this.move(Game.CANVAS_WIDTH-Drawing.Paddle.PADDLE_WIDTH - 1,2);
+
+            _.extend(this, data);
+
+            serverConn.addActionListener('opponentMoved', function(action){
+                that.move(0, action.data.y);
+            });
         }
     }
 
@@ -174,6 +185,7 @@ class GameServerConnection {
     }
 
     messageCallbacks = {};
+    socket;
 
     connect(gameId, nickname) {
         var that = this;
@@ -199,6 +211,17 @@ class GameServerConnection {
         });
     }
 
+    sendMoveMessage(x, y) {
+        console.log(y);
+        this.socket.emit('message', {
+            action : 'playerMoved', 
+            data : {
+                x : x,
+                y : y
+            }
+        });
+    }
+
     addActionListener(actionType, callback){
         actionType = actionType || "";
 
@@ -212,8 +235,8 @@ class GameServerConnection {
 }
 
 module Game {
-    export var CANVAS_WIDTH : number;
-    export var CANVAS_HEIGHT : number;
+    export var CANVAS_WIDTH = 800;
+    export var CANVAS_HEIGHT = 400;
 
     var context,
         lastTime,
@@ -229,9 +252,6 @@ module Game {
     export function init(gameId, nickname) {
         var objectRepo = Models.ObjectRepository.getInstance(),
             gameServer = GameServerConnection.getInstance();
-
-        CANVAS_WIDTH =  $("#canvas").width();
-        CANVAS_HEIGHT = $("#canvas").height();
         
         context = $("#canvas")[0].getContext("2d");
 
@@ -308,12 +328,6 @@ class GameUI {
         this.$connectMenu = $("#connect-menu");
         this.$gameInfo = $("#game-info");
         this.$error = $("#error");
-
-        $("<canvas>")
-        .attr("id", "canvas")
-        .width($(window).width())
-        .height($(window).height() - 30)
-        .appendTo(this.$canvasContainer);
 
         $(document).find("button").on('click', function(){
             that.$error.text("");

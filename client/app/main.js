@@ -97,7 +97,8 @@ var Models;
             _super.call(this, 0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
             this.MIN_Y = 2;
             this.VELOCITY = 500;
-            var that = this;
+            var that = this, serverConn = GameServerConnection.getInstance();
+
             this.setSprite(new Drawing.Paddle());
             this.move(2, 2);
             _.extend(this, data);
@@ -106,12 +107,14 @@ var Models;
                 var moveDistance = that.getDistance();
                 var move = (that.y - moveDistance < that.MIN_Y) ? 0 : -moveDistance;
                 that.move(0, move);
+                serverConn.sendMoveMessage(0, move);
             });
 
             $(document).bind('keypress.s', function () {
                 var moveDistance = that.getDistance();
                 var move = (that.bottom() + moveDistance > Game.CANVAS_HEIGHT - 2) ? 0 : moveDistance;
                 that.move(0, move);
+                serverConn.sendMoveMessage(0, move);
             });
         }
         Player.prototype.getDistance = function () {
@@ -123,11 +126,17 @@ var Models;
 
     var Opponent = (function (_super) {
         __extends(Opponent, _super);
-        function Opponent() {
+        function Opponent(data) {
             _super.call(this, 0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
-            var that = this;
+            var that = this, serverConn = GameServerConnection.getInstance();
             this.setSprite(new Drawing.Paddle());
             this.move(Game.CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH - 1, 2);
+
+            _.extend(this, data);
+
+            serverConn.addActionListener('opponentMoved', function (action) {
+                that.move(0, action.data.y);
+            });
         }
         return Opponent;
     })(GameObject);
@@ -197,6 +206,17 @@ var GameServerConnection = (function () {
         });
     };
 
+    GameServerConnection.prototype.sendMoveMessage = function (x, y) {
+        console.log(y);
+        this.socket.emit('message', {
+            action: 'playerMoved',
+            data: {
+                x: x,
+                y: y
+            }
+        });
+    };
+
     GameServerConnection.prototype.addActionListener = function (actionType, callback) {
         actionType = actionType || "";
 
@@ -213,8 +233,8 @@ var GameServerConnection = (function () {
 
 var Game;
 (function (Game) {
-    Game.CANVAS_WIDTH;
-    Game.CANVAS_HEIGHT;
+    Game.CANVAS_WIDTH = 800;
+    Game.CANVAS_HEIGHT = 400;
 
     var context, lastTime, currentTime, player, opponent, elapsedTime = 0;
 
@@ -225,9 +245,6 @@ var Game;
 
     function init(gameId, nickname) {
         var objectRepo = Models.ObjectRepository.getInstance(), gameServer = GameServerConnection.getInstance();
-
-        Game.CANVAS_WIDTH = $("#canvas").width();
-        Game.CANVAS_HEIGHT = $("#canvas").height();
 
         context = $("#canvas")[0].getContext("2d");
 
@@ -297,11 +314,6 @@ var GameUI = (function () {
         this.$connectMenu = $("#connect-menu");
         this.$gameInfo = $("#game-info");
         this.$error = $("#error");
-
-        var canvasElement = $("<canvas id='canvas' width='" + $(window).width() + 
-                      "' height='" + ($(window).height() - 40) + "'></canvas>");
-        
-        canvasElement.appendTo(this.$canvasContainer);
 
         $(document).find("button").on('click', function () {
             that.$error.text("");

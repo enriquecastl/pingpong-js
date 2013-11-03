@@ -228,6 +228,7 @@ module Models {
     export class Player extends GameObject {
         MIN_Y : number = 2;
         VELOCITY : number =  500;
+        score : number = 0;
 
         constructor(x = 2, y = 2, width = Drawing.Paddle.PADDLE_WIDTH, height = Drawing.Paddle.PADDLE_HEIGHT) {
             super(x, y, width, height);
@@ -260,6 +261,8 @@ module Models {
     }
 
     export class Opponent extends GameObject {
+
+        score : number = 0;
 
         constructor(x = 0, y = 0) {
             super(x, y, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
@@ -298,16 +301,16 @@ module Models {
             var serverConn = GameServerConnection.getInstance();
             this.calculateVelocity();
             
-            if(this.collideWithTopBottomCanvas(this.vY))
+            if(this.collideWithTopBottomCanvas())
                 this.yDirection = -this.yDirection;
 
-            if(this.collideWithLeftRightCanvas(this.vX)){
+            if(this.collideWithLeftRightCanvas()){
                 this.xDirection = -this.xDirection;
+                this.calculateAngle();
             }
 
             if(this.collideWithCanvas(this.vX, this.vY)){
                 this.calculateVelocity();
-                this.calculateAngle();
             }
 
             this.move(this.vX, this.vY, true);
@@ -317,15 +320,15 @@ module Models {
 
         collideWithCanvas(x = 0, y = 0) {
             return this.x + x - Ball.BALL_RADIUS <= 0 || this.y + y - Ball.BALL_RADIUS <= 0 ||
-            this.right() + x + Ball.BALL_RADIUS >= Game.CANVAS_WIDTH || this.bottom() + y + Ball.BALL_RADIUS >= Game.CANVAS_HEIGHT;
+            this.right() + x - Ball.BALL_RADIUS >= Game.CANVAS_WIDTH || this.bottom() + y - Ball.BALL_RADIUS >= Game.CANVAS_HEIGHT;
         }
 
         public collideWithTopBottomCanvas(y = 0){
-            return this.y - Ball.BALL_RADIUS + y <= 0 || this.bottom() + Ball.BALL_RADIUS + y >= Game.CANVAS_HEIGHT;
+            return this.y - Ball.BALL_RADIUS + y <= 0 || this.bottom() - Ball.BALL_RADIUS + y >= Game.CANVAS_HEIGHT;
         }
 
         public collideWithLeftRightCanvas(x = 0){
-            return this.x - Ball.BALL_RADIUS + x <= 0 || this.right() + Ball.BALL_RADIUS + x >= Game.CANVAS_WIDTH;
+            return this.x - Ball.BALL_RADIUS + x <= 0 || this.right() - Ball.BALL_RADIUS + x >= Game.CANVAS_WIDTH;
         }
 
         calculateAngle() {
@@ -356,7 +359,7 @@ module Models {
                 that = this;
 
             serverConn.on('change:ballPosition', function(model, position){
-                that.setPosition(position.x, position.y);
+                that.setPosition    (position.x, position.y);
             });
         }
     }

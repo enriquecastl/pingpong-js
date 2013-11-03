@@ -194,6 +194,7 @@ var Models;
             _super.call(this, x, y, width, height);
             this.MIN_Y = 2;
             this.VELOCITY = 500;
+            this.score = 0;
             var that = this, serverConn = GameServerConnection.getInstance();
             this.setSprite(new Drawing.Paddle());
 
@@ -226,6 +227,7 @@ else
             if (typeof x === "undefined") { x = 0; }
             if (typeof y === "undefined") { y = 0; }
             _super.call(this, x, y, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
+            this.score = 0;
             var that = this, serverConn = GameServerConnection.getInstance();
 
             this.setSprite(new Drawing.Paddle());
@@ -260,16 +262,16 @@ else
             var serverConn = GameServerConnection.getInstance();
             this.calculateVelocity();
 
-            if (this.collideWithTopBottomCanvas(this.vY))
+            if (this.collideWithTopBottomCanvas())
                 this.yDirection = -this.yDirection;
 
-            if (this.collideWithLeftRightCanvas(this.vX)) {
+            if (this.collideWithLeftRightCanvas()) {
                 this.xDirection = -this.xDirection;
+                this.calculateAngle();
             }
 
             if (this.collideWithCanvas(this.vX, this.vY)) {
                 this.calculateVelocity();
-                this.calculateAngle();
             }
 
             this.move(this.vX, this.vY, true);
@@ -280,17 +282,17 @@ else
         Ball.prototype.collideWithCanvas = function (x, y) {
             if (typeof x === "undefined") { x = 0; }
             if (typeof y === "undefined") { y = 0; }
-            return this.x + x - Ball.BALL_RADIUS <= 0 || this.y + y - Ball.BALL_RADIUS <= 0 || this.right() + x + Ball.BALL_RADIUS >= Game.CANVAS_WIDTH || this.bottom() + y + Ball.BALL_RADIUS >= Game.CANVAS_HEIGHT;
+            return this.x + x - Ball.BALL_RADIUS <= 0 || this.y + y - Ball.BALL_RADIUS <= 0 || this.right() + x - Ball.BALL_RADIUS >= Game.CANVAS_WIDTH || this.bottom() + y - Ball.BALL_RADIUS >= Game.CANVAS_HEIGHT;
         };
 
         Ball.prototype.collideWithTopBottomCanvas = function (y) {
             if (typeof y === "undefined") { y = 0; }
-            return this.y - Ball.BALL_RADIUS + y <= 0 || this.bottom() + Ball.BALL_RADIUS + y >= Game.CANVAS_HEIGHT;
+            return this.y - Ball.BALL_RADIUS + y <= 0 || this.bottom() - Ball.BALL_RADIUS + y >= Game.CANVAS_HEIGHT;
         };
 
         Ball.prototype.collideWithLeftRightCanvas = function (x) {
             if (typeof x === "undefined") { x = 0; }
-            return this.x - Ball.BALL_RADIUS + x <= 0 || this.right() + Ball.BALL_RADIUS + x >= Game.CANVAS_WIDTH;
+            return this.x - Ball.BALL_RADIUS + x <= 0 || this.right() - Ball.BALL_RADIUS + x >= Game.CANVAS_WIDTH;
         };
 
         Ball.prototype.calculateAngle = function () {

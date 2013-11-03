@@ -76,9 +76,10 @@ var Game = (function (_super) {
         this.set('id', uuid.v4().split('-')[0]);
         this.addPlayer("host", host);
 
-        host.on('ballPosition', function (ballPosition) {
-            if (Utils.isValidPosition(ballPosition) && model.hasGuest())
+        host.socket.on('ballPosition', function (ballPosition) {
+            if (Utils.isValidPosition(ballPosition) && model.hasGuest()) {
                 model.guest.notifyBallPosition(ballPosition);
+            }
         });
     };
 

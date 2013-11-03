@@ -295,6 +295,7 @@ module Models {
         }
 
         update() {
+            var serverConn = GameServerConnection.getInstance();
             this.calculateVelocity();
             
             if(this.collideWithTopBottomCanvas(this.vY))
@@ -310,6 +311,8 @@ module Models {
             }
 
             this.move(this.vX, this.vY, true);
+
+            serverConn.sendBallPosition(_.pick(this, 'x', 'y'));
         }
 
         collideWithCanvas(x = 0, y = 0) {
@@ -327,12 +330,12 @@ module Models {
 
         calculateAngle() {
             var angle = 0,
-                avoidMin = Utils.degreesToRadians(-5),
-                avoidMax = Utils.degreesToRadians(5);
+                avoidMin = Utils.degreesToRadians(-10),
+                avoidMax = Utils.degreesToRadians(10);
 
-//            while(angle == 0 || (angle >= avoidMin && angle <= avoidMax)){
+            while(angle == 0 || (angle >= avoidMin && angle <= avoidMax)){
                 angle = Math.random() * (this.maxAngle - this.minAngle) + this.minAngle;
-//sa            }
+            }
 
             this.vAngle = angle;
         }
@@ -341,6 +344,20 @@ module Models {
             var elapsedMs = (Game.getElapsedTime() / 1000);
             this.vX = (elapsedMs * this.movementSpeed * Math.cos(this.vAngle)) * this.xDirection;
             this.vY = (elapsedMs * this.movementSpeed * Math.sin(this.vAngle)) * this.yDirection;
+        }
+    }
+
+    export class RemoteBall extends GameObject {
+        constructor() {
+            super(1,1, Ball.BALL_RADIUS * 2, Ball.BALL_RADIUS * 2);
+            this.setSprite(new Drawing.Ball(Ball.BALL_RADIUS));
+            
+            var serverConn = GameServerConnection.getInstance(),
+                that = this;
+
+            serverConn.on('change:ballPosition', function(model, position){
+                that.setPosition(position.x, position.y);
+            });
         }
     }
 }
@@ -415,6 +432,10 @@ class GameServerConnection extends Backbone.Model {
         this.socket.emit('newPosition', pos);
     }
 
+    sendBallPosition(pos) {
+        this.socket.emit('ballPosition', pos);
+    }
+
     setListeners() {
         var that = this;
 
@@ -460,15 +481,22 @@ module Game {
 
         gameServerConn.on('change:connected', function(connected){
             if(connected){
-                gameId = gameServerConn.get('gameId');
                 player = ObjectRepository.getInstance().addObject(new Models.Player());
-                ball = ObjectRepository.getInstance().addObject(new Models.Ball());
+
+                if(gameId === null)
+                    ball = ObjectRepository.getInstance().addObject(new Models.Ball());
+
+                gameId = gameServerConn.get('gameId');
             }
         });
 
         gameServerConn.on('change:opponentPosition', function(pos){            
             if(!running){
                 opponent = ObjectRepository.getInstance().addObject(new Models.Opponent(pos.x, pos.y));
+
+                if(!ball)
+                    ball = ObjectRepository.getInstance().addObject(new Models.RemoteBall());
+
                 running = true;
                 run();
             }

@@ -23,9 +23,13 @@ module.exports = function(grunt){
             }
         },
         watch : {
-            ts : {
-                files : ['server/*.ts', 'client/app/*.ts'],
-                tasks : ['typescript']
+            tsClient : {
+                files : ['client/app/*.ts'],
+                tasks : ['typescript:client']
+            },
+            tsServer : {
+                files : ['server/*.ts'],
+                tasks : ['typescript:server']
             }
         }
     });

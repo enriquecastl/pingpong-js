@@ -4,275 +4,156 @@ var __extends = this.__extends || function (d, b) {
     __.prototype = b.prototype;
     d.prototype = new __();
 };
-var _ = require('underscore');
-var uuid = require('node-uuid');
+var _ = require('underscore'), uuid = require('node-uuid'), Backbone = require('backbone');
 
-var Models;
-(function (Models) {
-    var Game = (function () {
-        function Game(gameId) {
-            this.players = [];
-            if (!_.isString(gameId))
-                throw "invalid id";
+var Utils;
+(function (Utils) {
+    function isValidPosition(position) {
+        return _.isObject(position) && _.isNumber(position.x) && _.isNumber(position.y);
+    }
+    Utils.isValidPosition = isValidPosition;
+})(Utils || (Utils = {}));
 
-            if (Game.get(gameId))
-                throw "game with this id already exists";
+var Player = (function (_super) {
+    __extends(Player, _super);
+    function Player() {
+        _super.apply(this, arguments);
+    }
+    Player.prototype.initialize = function (nickname, socket) {
+        var model = this;
 
-            this.id = gameId;
-        }
-        Game.prototype.addPlayer = function (player) {
-            var registry = Actions.ActionRegistry;
-            players = this.players;
+        if (!_.isString(nickname) || nickname.length <= 0)
+            throw new Error("invalid nickname");
 
-            this.notifyAll(registry.newAction("newOpponent", {
-                opponent: [player]
-            }), player);
+        this.set('nickname', nickname);
+        this.socket = socket;
 
-            player.getActionHandler().sendAction(registry.newAction("newOpponent", {
-                opponent: players
-            }));
-
-            player.gameId = this.id;
-            players.push(player);
-        };
-
-        Game.prototype.notifyAll = function (action, except) {
-            _.each(this.players, function (player) {
-                if (player != except) {
-                    player.getActionHandler().sendAction(action);
-                }
-            });
-        };
-
-        Game.prototype.findByNickname = function (nickname) {
-            return _.find(this.players, function (player) {
-                return player.nickname == nickname;
-            });
-
-            return null;
-        };
-
-        Game.newGame = function () {
-            game = new Game(uuid.v4());
-            Game.games.push(game);
-            return game;
-        };
-
-        Game.findByPlayer = function (player) {
-            return _.find(Game.games, function (game) {
-                return _.some(game.players, function (p) {
-                    return p == player;
-                });
-            });
-        };
-
-        Game.get = function (gameId) {
-            return _.find(Game.games, function (game) {
-                return game.id === gameId;
-            });
-        };
-        Game.games = [];
-        return Game;
-    })();
-    Models.Game = Game;
-
-    var Player = (function () {
-        function Player(actionHandler) {
-            var player = this;
-
-            this.playerId = uuid.v4();
-
-            this.getActionHandler = function () {
-                return actionHandler;
-            };
-
-            actionHandler.receiveAction(function (action) {
-                var result = action.execute(player);
-
-                if (_.isObject(result))
-                    actionHandler.sendAction(result);
-            });
-        }
-        Player.prototype.getGame = function () {
-            return Game.findByPlayer(this);
-        };
-
-        Player.prototype.toJson = function () {
-            return _.omit(this, 'actionHandler');
-        };
-        return Player;
-    })();
-    Models.Player = Player;
-})(Models || (Models = {}));
-
-var Actions;
-(function (Actions) {
-    var ActionHandler = (function () {
-        function ActionHandler(socket) {
-            this.socket = socket;
-        }
-        ActionHandler.prototype.receiveAction = function (callback) {
-            var that = this;
-
-            this.socket.on('message', function (message) {
-                if (!_.isObject(message))
-                    return;
-                if (!_.isString(message.action))
-                    return;
-                if (!_.isObject(message.data))
-                    return;
-
-                var action = ActionRegistry.newAction(message.action, message.data);
-
-                (action != null) ? callback(action) : that.sendAction(_.extend({
-                    error: "invalid action"
-                }, message));
-            });
-        };
-
-        ActionHandler.prototype.sendAction = function (action) {
-            this.socket.emit('message', action);
-        };
-        return ActionHandler;
-    })();
-    Actions.ActionHandler = ActionHandler;
-
-    var ActionRegistry = (function () {
-        function ActionRegistry() {
-        }
-        ActionRegistry.newAction = function (type, data) {
-            var action = _.find(ActionRegistry.registeredActions, function (action, actionType) {
-                return actionType === type;
-            });
-
-            return (action) ? new action(data) : new Action(type, data);
-        };
-
-        ActionRegistry.registerAction = function (actionType, action) {
-            if (action == null)
-                return;
-            ActionRegistry.registeredActions[actionType] = action;
-        };
-        ActionRegistry.registeredActions = {};
-        return ActionRegistry;
-    })();
-    Actions.ActionRegistry = ActionRegistry;
-
-    var Action = (function () {
-        function Action(type, data) {
-            if (!_.isObject(data))
-                throw "Please pass valid data to the action";
-
-            this.data = data || {};
-            this.type = type;
-        }
-        Action.prototype.getType = function () {
-            return "";
-        };
-
-        Action.prototype.put = function (key, data) {
-            this.data[key] = data;
-        };
-
-        Action.prototype.toMessage = function () {
-            var that = this;
-
-            return {
-                action: this.getType(),
-                data: this.data
-            };
-        };
-
-        Action.prototype.execute = function (who) {
-            if (who == null)
-                throw "invalid who";
-        };
-        return Action;
-    })();
-    Actions.Action = Action;
-
-    var ConnectToGame = (function (_super) {
-        __extends(ConnectToGame, _super);
-        function ConnectToGame(data) {
-            _super.call(this, null, data);
-
-            this.type = "connectToGame";
-        }
-        ConnectToGame.prototype.execute = function (who) {
-            var game, gameId = this.data.gameId, nickname = this.data.nickname, opponent;
-
-            if (_.isString(gameId)) {
-                game = Models.Game.get(gameId);
-
-                if (!game)
-                    return ActionRegistry.newAction('connectToGame', {
-                        me: who,
-                        error: "Couldn't find a game with that ID"
-                    });
+        this.socket.on('newPosition', function (position) {
+            if (Utils.isValidPosition(position)) {
+                console.log("setting position");
+                console.log(position);
+                model.set('position', position);
             } else {
-                game = Models.Game.newGame();
+                console.log("Invalid position");
+                console.log(position);
             }
+        });
 
-            if (!_.isString(nickname) || nickname.length < 4)
-                return ActionRegistry.newAction('connectToGame', {
-                    me: who,
-                    error: "Your nickname should have at least 4 characters"
-                });
-
-            who.nickname = nickname;
-            game.addPlayer(who);
-
-            return ActionRegistry.newAction('connectToGame', {
-                game: game,
-                me: who
+        this.on('change:gameId', function (model, gameId) {
+            model.socket.emit('connectionSuccess', {
+                gameId: gameId
             });
+        });
+    };
+
+    Player.prototype.notifyOponentPosition = function (position) {
+        this.socket.emit('opponentPosition', position);
+    };
+
+    Player.prototype.notifyBallPosition = function (position) {
+        this.socket.emit('ballPosition', position);
+    };
+    return Player;
+})(Backbone.Model);
+
+var Game = (function (_super) {
+    __extends(Game, _super);
+    function Game() {
+        _super.apply(this, arguments);
+        this.opposites = {
+            'host': 'guest',
+            'guest': 'host'
         };
+    }
+    Game.newGame = function (host) {
+        var game = new Game(host);
+        return game;
+    };
 
-        ConnectToGame.prototype.getType = function () {
-            return this.type;
-        };
-        return ConnectToGame;
-    })(Action);
-    Actions.ConnectToGame = ConnectToGame;
+    Game.prototype.initialize = function (host) {
+        var model = this;
 
-    ActionRegistry.registerAction("connectToGame", ConnectToGame);
+        this.set('id', uuid.v4().split('-')[0]);
+        this.addPlayer("host", host);
 
-    var PlayerMoved = (function (_super) {
-        __extends(PlayerMoved, _super);
-        function PlayerMoved(data) {
-            _super.call(this, null, data);
+        host.on('ballPosition', function (ballPosition) {
+            if (Utils.isValidPosition(ballPosition) && model.hasGuest())
+                model.guest.notifyBallPosition(ballPosition);
+        });
+    };
 
-            this.type = "playerMoved";
-        }
-        PlayerMoved.prototype.execute = function (who) {
-            var game = Models.Game.get(who.gameId);
-            game.notifyAll(ActionRegistry.newAction('opponentMoved', this.data), who);
-        };
-        return PlayerMoved;
-    })(Action);
-    Actions.PlayerMoved = PlayerMoved;
+    Game.prototype.setGuest = function (guest) {
+        this.addPlayer("guest", guest);
+    };
 
-    ActionRegistry.registerAction("playerMoved", PlayerMoved);
-})(Actions || (Actions = {}));
+    Game.prototype.hasGuest = function () {
+        return (this.guest instanceof Player);
+    };
+
+    Game.prototype.addPlayer = function (playerPosition, player) {
+        var that = this;
+
+        if (playerPosition !== "host" && playerPosition !== "guest")
+            throw new Error("Invalid player position");
+
+        if (!(player instanceof Player))
+            throw new Error("invalid " + playerPosition + " player");
+else
+            that[playerPosition] = player;
+
+        player.on('change:position', function (model, position) {
+            that.notifyOpposite(playerPosition, position);
+        });
+
+        if (playerPosition === "guest")
+            player.notifyOponentPosition(that["host"].get('position'));
+
+        player.set('gameId', this.get('id'));
+    };
+
+    Game.prototype.notifyOpposite = function (playerPosition, position) {
+        var opposite = this[this.opposites[playerPosition]];
+
+        if (opposite instanceof Player)
+            opposite.notifyOponentPosition(position);
+    };
+    return Game;
+})(Backbone.Model);
 
 var GameServer = (function () {
     function GameServer() {
         this.app = require('http').createServer(this.handler);
         this.io = require('socket.io').listen(this.app);
         this.fs = require('fs');
-        this.players = [];
-        var that = GameServer.that = this;
+        this.games = [];
+        var server = this;
+
+        GameServer.instance = server;
 
         this.app.listen(8000);
         this.io.sockets.on('connection', function (socket) {
-            var player = new Models.Player(new Actions.ActionHandler(socket));
-            that.players.push(player);
+            socket.on('newGame', function (data) {
+                var host = new Player(data.nickname, socket);
+                server.games.push(Game.newGame(host));
+            });
+
+            socket.on('connectToGame', function (data) {
+                var game = server.findGameById(data.gameId);
+
+                (game) ? game.setGuest(new Player(data.nickname, socket)) : socket.emit('connectError', "No game found");
+            });
         });
     }
+    GameServer.prototype.findGameById = function (id) {
+        return _.find(this.games, function (game) {
+            return game.get('id') === id;
+        });
+    };
+
     GameServer.prototype.handler = function (req, res) {
         var fileName = __dirname + ((req.url === '/') ? '/../index.html' : '/../' + req.url);
 
-        GameServer.that.fs.readFile(fileName, function (err, data) {
+        GameServer.instance.fs.readFile(fileName, function (err, data) {
             if (err) {
                 res.writeHead(500);
                 return res.end('Error loading index.html');

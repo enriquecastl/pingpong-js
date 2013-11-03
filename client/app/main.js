@@ -10,6 +10,19 @@ window.requestAnimFrame = (function () {
     };
 })();
 
+var Utils;
+(function (Utils) {
+    function radiansToDegrees(radians) {
+        return radians * (180 / Math.PI);
+    }
+    Utils.radiansToDegrees = radiansToDegrees;
+
+    function degreesToRadians(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+    Utils.degreesToRadians = degreesToRadians;
+})(Utils || (Utils = {}));
+
 var Drawing;
 (function (Drawing) {
     var Sprite = (function () {
@@ -49,6 +62,25 @@ var Drawing;
         return Paddle;
     })(Sprite);
     Drawing.Paddle = Paddle;
+
+    var Ball = (function (_super) {
+        __extends(Ball, _super);
+        function Ball(radius) {
+            _super.call(this, 0, 0, 0, 0);
+            this.color = "#fff";
+            this.radius = radius;
+        }
+        Ball.prototype.draw = function (context) {
+            _super.prototype.draw.call(this);
+            context.fillStyle = this.color;
+            context.beginPath();
+            context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI, false);
+            context.closePath();
+            context.fill();
+        };
+        return Ball;
+    })(Sprite);
+    Drawing.Ball = Ball;
 })(Drawing || (Drawing = {}));
 
 var Models;
@@ -60,9 +92,26 @@ var Models;
             this.width = width;
             this.height = height;
         }
-        GameObject.prototype.move = function (x, y) {
+        GameObject.prototype.move = function (x, y, adjustToCanvas) {
+            if (typeof adjustToCanvas === "undefined") { adjustToCanvas = false; }
             this.x += x;
             this.y += y;
+
+            if (adjustToCanvas) {
+                this.x = (this.x >= Game.CANVAS_WIDTH) ? (Game.CANVAS_WIDTH - this.width) : this.x;
+                this.x = (this.x <= 0) ? 1 : this.x;
+                this.y = (this.y >= Game.CANVAS_HEIGHT) ? (Game.CANVAS_HEIGHT - this.height) : this.y;
+                this.y = (this.y <= 0) ? 1 : this.y;
+            }
+
+            this.sprite.setPosition(this.x, this.y);
+        };
+
+        GameObject.prototype.setPosition = function (x, y) {
+            if (typeof x === "undefined") { x = 0; }
+            if (typeof y === "undefined") { y = 0; }
+            this.x = x;
+            this.y = y;
 
             this.sprite.setPosition(this.x, this.y);
         };
@@ -71,6 +120,26 @@ var Models;
             if (sprite !== null) {
                 this.sprite = sprite;
             }
+        };
+
+        GameObject.prototype.collide = function (gameObject) {
+            return this.x <= gameObject.x && this.right() >= gameObject.x && this.y <= gameObject.y && this.bottom() >= gameObject.y;
+        };
+
+        GameObject.prototype.collideWithCanvas = function (x, y) {
+            if (typeof x === "undefined") { x = 0; }
+            if (typeof y === "undefined") { y = 0; }
+            return this.x + x <= 0 || this.y + y <= 0 || this.right() + x >= Game.CANVAS_WIDTH || this.bottom() + y >= Game.CANVAS_HEIGHT;
+        };
+
+        GameObject.prototype.collideWithTopBottomCanvas = function (y) {
+            if (typeof y === "undefined") { y = 0; }
+            return this.y + y <= 0 || this.bottom() + y >= Game.CANVAS_HEIGHT;
+        };
+
+        GameObject.prototype.collideWithLeftRightCanvas = function (x) {
+            if (typeof x === "undefined") { x = 0; }
+            return this.x + x <= 0 || this.right() + x >= Game.CANVAS_WIDTH;
         };
 
         GameObject.prototype.getSprite = function () {
@@ -97,8 +166,7 @@ var Models;
             _super.call(this, 0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
             this.MIN_Y = 2;
             this.VELOCITY = 500;
-            var that = this, serverConn = GameServerConnection.getInstance();
-
+            var that = this;
             this.setSprite(new Drawing.Paddle());
             this.move(2, 2);
             _.extend(this, data);
@@ -107,14 +175,12 @@ var Models;
                 var moveDistance = that.getDistance();
                 var move = (that.y - moveDistance < that.MIN_Y) ? 0 : -moveDistance;
                 that.move(0, move);
-                serverConn.sendMoveMessage(0, move);
             });
 
             $(document).bind('keypress.s', function () {
                 var moveDistance = that.getDistance();
                 var move = (that.bottom() + moveDistance > Game.CANVAS_HEIGHT - 2) ? 0 : moveDistance;
                 that.move(0, move);
-                serverConn.sendMoveMessage(0, move);
             });
         }
         Player.prototype.getDistance = function () {
@@ -128,19 +194,89 @@ var Models;
         __extends(Opponent, _super);
         function Opponent(data) {
             _super.call(this, 0, 0, Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
-            var that = this, serverConn = GameServerConnection.getInstance();
+            var that = this;
+
             this.setSprite(new Drawing.Paddle());
             this.move(Game.CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH - 1, 2);
 
             _.extend(this, data);
-
-            serverConn.addActionListener('opponentMoved', function (action) {
-                that.move(0, action.data.y);
-            });
         }
         return Opponent;
     })(GameObject);
     Models.Opponent = Opponent;
+
+    var Ball = (function (_super) {
+        __extends(Ball, _super);
+        function Ball() {
+            _super.call(this, 1, 1, Ball.BALL_RADIUS * 2, Ball.BALL_RADIUS * 2);
+            this.movementSpeed = 500;
+            this.minAngle = Utils.degreesToRadians(-20);
+            this.maxAngle = Utils.degreesToRadians(20);
+            this.vAngle = Utils.degreesToRadians(0);
+            this.xDirection = 1;
+            this.yDirection = 1;
+            this.setSprite(new Drawing.Ball(Ball.BALL_RADIUS));
+            this.initialPos = {
+                x: Game.CANVAS_WIDTH / 2 - Ball.BALL_RADIUS,
+                y: Game.CANVAS_HEIGHT / 2 - Ball.BALL_RADIUS
+            };
+
+            this.move(this.initialPos.x, this.initialPos.y);
+        }
+        Ball.prototype.update = function () {
+            this.calculateVelocity();
+
+            if (this.collideWithTopBottomCanvas(this.vY))
+                this.yDirection = -this.yDirection;
+
+            if (this.collideWithLeftRightCanvas(this.vX)) {
+                this.xDirection = -this.xDirection;
+            }
+
+            if (this.collideWithCanvas(this.vX, this.vY)) {
+                this.calculateVelocity();
+                this.calculateAngle();
+            }
+
+            this.move(this.vX, this.vY, true);
+        };
+
+        Ball.prototype.collideWithCanvas = function (x, y) {
+            if (typeof x === "undefined") { x = 0; }
+            if (typeof y === "undefined") { y = 0; }
+            return this.x + x - Ball.BALL_RADIUS <= 0 || this.y + y - Ball.BALL_RADIUS <= 0 || this.right() + x + Ball.BALL_RADIUS >= Game.CANVAS_WIDTH || this.bottom() + y + Ball.BALL_RADIUS >= Game.CANVAS_HEIGHT;
+        };
+
+        Ball.prototype.collideWithTopBottomCanvas = function (y) {
+            if (typeof y === "undefined") { y = 0; }
+            return this.y - Ball.BALL_RADIUS + y <= 0 || this.bottom() + Ball.BALL_RADIUS + y >= Game.CANVAS_HEIGHT;
+        };
+
+        Ball.prototype.collideWithLeftRightCanvas = function (x) {
+            if (typeof x === "undefined") { x = 0; }
+            return this.x - Ball.BALL_RADIUS + x <= 0 || this.right() + Ball.BALL_RADIUS + x >= Game.CANVAS_WIDTH;
+        };
+
+        Ball.prototype.calculateAngle = function () {
+            var angle = 0, avoidMin = Utils.degreesToRadians(-5), avoidMax = Utils.degreesToRadians(5);
+
+            while (angle == 0 || (angle >= avoidMin && angle <= avoidMax)) {
+                angle = Math.random() * (this.maxAngle - this.minAngle) + this.minAngle;
+                console.log(angle);
+            }
+
+            this.vAngle = angle;
+        };
+
+        Ball.prototype.calculateVelocity = function () {
+            var elapsedMs = (Game.getElapsedTime() / 1000);
+            this.vX = (elapsedMs * this.movementSpeed * Math.cos(this.vAngle)) * this.xDirection;
+            this.vY = (elapsedMs * this.movementSpeed * Math.sin(this.vAngle)) * this.yDirection;
+        };
+        Ball.BALL_RADIUS = 10;
+        return Ball;
+    })(GameObject);
+    Models.Ball = Ball;
 
     var ObjectRepository = (function () {
         function ObjectRepository() {
@@ -171,69 +307,9 @@ var Models;
     Models.ObjectRepository = ObjectRepository;
 })(Models || (Models = {}));
 
-var GameServerConnection = (function () {
-    function GameServerConnection() {
-        this.messageCallbacks = {};
-    }
-    GameServerConnection.getInstance = function () {
-        if (GameServerConnection.instance == null)
-            GameServerConnection.instance = new GameServerConnection();
-
-        return GameServerConnection.instance;
-    };
-
-    GameServerConnection.prototype.connect = function (gameId, nickname) {
-        var that = this;
-
-        this.socket = io.connect('http://localhost:8000');
-        this.socket.on('message', function (message) {
-            var callbackName = message.type;
-
-            if (message.data.error)
-                callbackName = callbackName.concat("Error");
-
-            _.each(that.messageCallbacks[callbackName], function (callback) {
-                callback(message);
-            });
-        });
-
-        this.socket.emit('message', {
-            action: 'connectToGame',
-            data: {
-                nickname: nickname,
-                gameId: gameId
-            }
-        });
-    };
-
-    GameServerConnection.prototype.sendMoveMessage = function (x, y) {
-        console.log(y);
-        this.socket.emit('message', {
-            action: 'playerMoved',
-            data: {
-                x: x,
-                y: y
-            }
-        });
-    };
-
-    GameServerConnection.prototype.addActionListener = function (actionType, callback) {
-        actionType = actionType || "";
-
-        if (!_.isFunction(callback))
-            return;
-
-        if (!_.isArray(this.messageCallbacks[actionType]))
-            this.messageCallbacks[actionType] = [];
-
-        this.messageCallbacks[actionType].push(callback);
-    };
-    return GameServerConnection;
-})();
-
 var Game;
 (function (Game) {
-    Game.CANVAS_WIDTH = 800;
+    Game.CANVAS_WIDTH = 600;
     Game.CANVAS_HEIGHT = 400;
 
     var context, lastTime, currentTime, player, opponent, elapsedTime = 0;
@@ -244,22 +320,13 @@ var Game;
     Game.getElapsedTime = getElapsedTime;
 
     function init(gameId, nickname) {
-        var objectRepo = Models.ObjectRepository.getInstance(), gameServer = GameServerConnection.getInstance();
+        var objectRepo = Models.ObjectRepository.getInstance();
 
         context = $("#canvas")[0].getContext("2d");
+        objectRepo.addObject(new Models.Player());
+        objectRepo.addObject(new Models.Ball());
 
-        gameServer.addActionListener("connectToGame", function (action) {
-            objectRepo.addObject(new Models.Player(action.data.me));
-            run();
-        });
-
-        gameServer.addActionListener("newOpponent", function (action) {
-            if (action.data.opponent.length == 0)
-                return;
-            objectRepo.addObject(new Models.Opponent(action.data.opponent[0]));
-        });
-
-        gameServer.connect(gameId, nickname);
+        run();
     }
     Game.init = init;
 
@@ -286,7 +353,9 @@ var Game;
     }
 
     function draw() {
+        context.beginPath();
         context.clearRect(0, 0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT);
+        context.closePath();
         context.fillStyle = "#000";
         context.fillRect(0, 0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT);
 
@@ -335,20 +404,6 @@ var GameUI = (function () {
 
         this.$connect.on('click', function (e) {
             e.preventDefault();
-            Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val());
-        });
-
-        var gameServer = GameServerConnection.getInstance();
-
-        gameServer.addActionListener('connectToGameError', function (action) {
-            processError(action.data);
-        });
-
-        gameServer.addActionListener('connectToGame', function (action) {
-            that.$connectMenu.hide();
-            that.$gameInfo.find(".gameId").text(action.data.game.id);
-            that.$gameInfo.find(".nickname").text(action.data.me.nickname);
-            that.$gameInfo.show();
         });
 
         function processError(actionData) {
@@ -359,6 +414,8 @@ var GameUI = (function () {
 
             return false;
         }
+
+        Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val());
     }
     return GameUI;
 })();

@@ -159,7 +159,7 @@ class GameServer {
 
         GameServer.instance = server;
 
-        this.app.listen(8000);
+        this.app.listen(8001);
         this.io.sockets.on('connection', function(socket) {
             socket.on('newGame', function(data){
                 var host = new Player(data.nickname, socket);

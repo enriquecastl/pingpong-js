@@ -13,4 +13,7 @@ pids
 logs
 results
 
+client/lib
+client/css
+
 npm-debug.log

@@ -387,23 +387,22 @@ else
 
             this.calculateVelocity();
 
-            if (this.collideWithTopBottomCanvas())
+            if (this.collideWithTopBottomCanvas()) {
                 this.yDirection = -this.yDirection;
-
-            if (this.collideWithLeftRightCanvas())
-                this.xDirection = -this.xDirection;
-
-            if (player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)) {
+                this.calculateVelocity();
+            } else if (player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)) {
                 this.xDirection = -this.xDirection;
                 this.calculateAngle();
                 this.calculateVelocity();
+            } else if (this.collideWithLeftCanvas()) {
+                this.calculateVelocity();
+                opponent.increaseScore();
+            } else if (this.collideWithRightCanvas()) {
+                this.xDirection = -this.xDirection;
+                player.increaseScore();
             }
 
-            if (this.collideWithCanvas())
-                this.calculateVelocity();
-
             this.move(this.vX, this.vY, true);
-
             serverConn.sendBallPosition(_.pick(this.point, 'x', 'y'));
         };
 

@@ -150,8 +150,8 @@ window.addEventListener('keydown', function(event) { Key.onKeydown(event) }, fal
 module Models {
 
     export class Point {
-        private x : number;
-        private y : number;
+        private x : number
+        private y : number
 
         constructor(x = 0, y = 0) {
             this.x = x
@@ -209,7 +209,7 @@ module Models {
         }
 
         update() {
-            return;
+            return
         }
     }
 
@@ -252,7 +252,7 @@ module Models {
             gameObject.rightMostPoint().getX() >= this.point.getX() &&
             gameObject.topMostPoint().getY() <= this.bottom() && 
             gameObject.bottomMostPoint().getY() >= this.point.getY()) ||
-            this.pointInsideRectangle(gameObject.point);
+            this.pointInsideRectangle(gameObject.point)
         }
 
         public pointInsideRectangle(point : Point) {
@@ -285,7 +285,7 @@ module Models {
     }
 
     export class CircularGameObject extends GameObject {
-        radius : number = 0.0;
+        radius : number = 0.0
 
         constructor(point = new Point(0, 0), radius = 5) {
             super(point)
@@ -416,23 +416,22 @@ module Models {
  
             this.calculateVelocity()
             
-            if(this.collideWithTopBottomCanvas())
+            if(this.collideWithTopBottomCanvas()){
                 this.yDirection = -this.yDirection
-
-            if(this.collideWithLeftRightCanvas())
-                this.xDirection = -this.xDirection
-
-            if(player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)){
+                this.calculateVelocity()
+            } else if(player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)){
                 this.xDirection = -this.xDirection
                 this.calculateAngle()
                 this.calculateVelocity()
+            } else if(this.collideWithLeftCanvas()) {
+                this.calculateVelocity()
+                opponent.increaseScore()
+            } else if(this.collideWithRightCanvas()) {
+                this.xDirection = -this.xDirection
+                player.increaseScore()
             }
 
-            if(this.collideWithCanvas())
-                this.calculateVelocity()
-
             this.move(this.vX, this.vY, true)
-
             serverConn.sendBallPosition(_.pick(this.point, 'x', 'y'))
         }
 
@@ -495,7 +494,7 @@ class ObjectRepository {
     }
 
     public clean() {
-        this.objects = [];
+        this.objects = []
     }
 
     public getObjects() {
@@ -592,7 +591,7 @@ module Game {
 
     export function init(gameId = null, nickname = "") {
         var gameServerConn = GameServerConnection.getInstance(),
-            objectRepo = ObjectRepository.getInstance();
+            objectRepo = ObjectRepository.getInstance()
 
         isHost = _.isNull(gameId)
         context = $("#canvas")[0].getContext("2d")
@@ -626,24 +625,24 @@ module Game {
     }
 
     export function pause() {
-        paused = true;
+        paused = true
     }
 
     export function unpaused() {
-        paused = false;
+        paused = false
     }
 
     export function restart() {
         var objectRepo = ObjectRepository.getInstance()
 
-        paused = true;
+        paused = true
 
         setTimeout(function(){
-            objectRepo.clean();
-            objectRepo.addObject(new Models.Player());
-            objectRepo.addObject(new Models.Opponent());
-            objectRepo.addObject(new Models.Ball());
-            paused = false;
+            objectRepo.clean()
+            objectRepo.addObject(new Models.Player())
+            objectRepo.addObject(new Models.Opponent())
+            objectRepo.addObject(new Models.Ball())
+            paused = false
         }, 2000)
     }
 

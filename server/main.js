@@ -182,7 +182,7 @@ var GameServer = (function () {
         var server, connectInstance, socketServer, that = this;
 
         connectInstance = connect().use(connect.static(__dirname + '/../client/'));
-        server = http.createServer(connectInstance).listen(8001);
+        server = http.createServer(connectInstance).listen((process.env.PORT || 8001));
         socketServer = io.listen(server);
 
         socketServer.sockets.on('connection', function (socket) {

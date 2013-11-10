@@ -6,22 +6,22 @@
         <link rel="stylesheet" type="text/css" href="css/app.css" />
     </head>
     <body>
-        <nav class="navbar navbar-default" role="navigation">
+        <nav class="navbar navbar-default navbar-inverse" role="navigation">
             <div class="navbar-header">
-                    <a class="navbar-brand" href="#">Pong 5!</a>
+                    <a class="navbar-brand" href="#">Pong5!</a>
             </div>
         </nav>
-        <div id="connect-dialog" class="modal fade" tabindex="-1" role="dialog">
+        <div id="connect-dialog" data-backdrop="static" data-keyboard="false" class="modal fade" tabindex="-1" role="dialog">
             <div class="modal-dialog">
                 <form class="modal-content" role="form">
                     <div class="modal-header">
-                        <h4 class="modal-title">Comenzar a jugar</h4>
+                        <h4 class="modal-title">Start Playing</h4>
                     </div>
                     <div class="modal-body">
                         <div class="connect-screen">
                             <ul class="nav nav-pills">
-                                <li class="active"><a href="#new-game" data-toggle="tab">Nuevo Juego</a></li>
-                                <li><a href="#connect" data-toggle="tab">Juego Existente</a></li>
+                                <li class="active"><a href="#new-game" data-toggle="tab">New Game</a></li>
+                                <li><a href="#connect" data-toggle="tab">Existing Game</a></li>
                             </ul>
                             <div class="tab-content">
                                 <div class="tab-pane fade in active" id="new-game">
@@ -33,7 +33,7 @@
                                 </div>
                                 <div class="tab-pane fade" id="connect">
                                     <div class="form-group">
-                                        <label for="game-id">Código del Juego</label>
+                                        <label for="game-id">Game Code</label>
                                         <input type="text" name="game-id" 
                                             class="form-control input-sm" id="game-id" />
                                     </div>
@@ -46,19 +46,40 @@
                             </div>
                         </div>
                         <div class="waiting-for-opponent">
-                            <div>
-                                Esperando Oponente
+                            <div class="alert alert-info">
+                                Share this code with your opponent to start the game!
+                                <br />
+                                <strong class="game-id"></strong>
+                            </div>
+                            <div class="message">
+                                <div>
+                                    Waiting for your opponent
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit"  class="submitter hide">Conectar</button>
-                        <button type="button" class="btn btn-connect btn-default">Conectar</button>
+                        <button type="submit"  class="submitter hide">Connect</button>
+                        <button type="button" class="btn btn-connect btn-default">Connect</button>
                     </div>
                 </form>
             </div>
         </div>
-        <canvas id="canvas" width="600" height="400"></canvas>
+        <div class="game-ui">
+            <div class="row scores">
+                <div class="col-md-offset-2 first-score col-md-3 text-left">
+                    0
+                </div>
+                <div class="col-md-2 text-center counter">
+                    Iniciando en <span class="counter-number">3</span>
+                </div>
+                <div class="col-md-3 last-score text-right">
+                    0
+                </div>
+                <div class="col-md-2"></div>
+            </div>
+            <canvas id="canvas" width="600" height="400"></canvas>
+        </div>
         <script type="text/javascript" src="lib/socket.io-client/dist/socket.io.js"></script>
         <!-- bower:js -->
         <script type="text/javascript" src="lib/jquery/jquery.js"></script>

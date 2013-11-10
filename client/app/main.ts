@@ -184,11 +184,12 @@ module Models {
         }
     }
 
-    export class GameObject {
+    export class GameObject extends Backbone.Model {
         point : Point
         sprite : Drawing.Sprite
 
         constructor(point : Point) {
+            super()
             this.point = point
         }
 
@@ -335,15 +336,21 @@ module Models {
         }
 
         public collideWithLeftRightCanvas(x = 0) {
-            return this.point.distanceFromPointCoords(0) <= this.radius ||
-            this.point.distanceFromPointCoords(Game.CANVAS_WIDTH) <= this.radius
+            return this.collideWithLeftCanvas() || this.collideWithRightCanvas()
+        }
+
+        public collideWithLeftCanvas() {
+            return this.point.distanceFromPointCoords(0) <= this.radius 
+        }
+
+        public collideWithRightCanvas() {
+            return this.point.distanceFromPointCoords(Game.CANVAS_WIDTH) <= this.radius
         }
     }
 
     export class Player extends RectangularGameObject {
         MIN_Y : number = 0
         VELOCITY : number =  500
-        score : number = 0
         id : string = "player"
 
         constructor(x = 0, y = 0) {
@@ -354,6 +361,10 @@ module Models {
             this.setSprite(new Drawing.Paddle())
 
             serverConn.sendPosition(_.pick(that.point, 'x', 'y'))
+        }
+
+        initialize() {
+            this.set('score', 0)
         }
 
         update(){
@@ -373,7 +384,12 @@ module Models {
         }
 
         getDistance() : number {
-            return (Game.getElapsedTime() / 1000) * this.VELOCITY
+            return (Game.getInstance().getElapsedTime() / 1000) * this.VELOCITY
+        }
+
+        increaseScore() {
+            this.set('score', this.get('score') + 1)
+            GameServerConnection.getInstance().notifyScore('host', this.score)
         }
     }
 
@@ -391,6 +407,15 @@ module Models {
             serverConn.on('change:opponentPosition', function(model, position){
                 that.setPosition(that.point.getX(), position.y)
             })
+        }
+
+        initialize() {
+            this.set('score', 0)
+        }
+
+        increaseScore() {
+            this.set('score', this.get('score') + 1)
+            GameServerConnection.getInstance().notifyScore('guest', this.score)
         }
     }
 
@@ -418,21 +443,24 @@ module Models {
             
             if(this.collideWithTopBottomCanvas()){
                 this.yDirection = -this.yDirection
-                this.calculateVelocity()
-            } else if(player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)){
-                this.xDirection = -this.xDirection
-                this.calculateAngle()
-                this.calculateVelocity()
-            } else if(this.collideWithLeftCanvas()) {
-                this.calculateVelocity()
+            } else if(player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)) {
+                this.doXCalculations()
+            }  else if(this.collideWithLeftCanvas()) {
                 opponent.increaseScore()
+                this.doXCalculations()
             } else if(this.collideWithRightCanvas()) {
-                this.xDirection = -this.xDirection
                 player.increaseScore()
+                this.doXCalculations()
             }
 
+            this.calculateVelocity()
             this.move(this.vX, this.vY, true)
             serverConn.sendBallPosition(_.pick(this.point, 'x', 'y'))
+        }
+
+        doXCalculations() {
+            this.xDirection = -this.xDirection
+            this.calculateAngle()
         }
 
         calculateAngle() {
@@ -447,7 +475,7 @@ module Models {
         }
 
         calculateVelocity() {
-            var elapsedMs = (Game.getElapsedTime() / 1000)
+            var elapsedMs = (Game.getInstance().getElapsedTime() / 1000)
             this.vX = (elapsedMs * this.movementSpeed * Math.cos(this.vAngle)) * this.xDirection
             this.vY = (elapsedMs * this.movementSpeed * Math.sin(this.vAngle)) * this.yDirection
         }
@@ -561,6 +589,13 @@ class GameServerConnection extends Backbone.Model {
         return this.get('opponentConnected')
     }
 
+    notifyScore(role, score){
+        if(role === "host")
+            this.socket.on('hostScore', score)
+        else
+            this.socket.on('guestScore', score)
+    }
+
     setListeners() {
         var that = this
 
@@ -571,14 +606,18 @@ class GameServerConnection extends Backbone.Model {
         })
 
         this.socket.on('opponentPosition', function(pos) {
+            that.set('opponentPosition', pos)
+
             if(!that.get('opponentConnected'))
                 that.set('opponentConnected', true)
-
-            that.set('opponentPosition', pos)
         })
 
         this.socket.on('ballPosition', function(pos) {
             that.set('ballPosition', pos)
+        })
+
+        this.socket.on('scoreInfo', function(scoreInfo) {
+            that.set('scoreInfo', scoreInfo)
         })
     }
 }
@@ -594,13 +633,14 @@ class Game extends Backbone.Model {
     }
 
     getElapsedTime(){
-        return elapsedTime
+        return this.elapsedTime
     }
 
     connect() {
         var gameServerConn = GameServerConnection.getInstance(),
             objectRepo = ObjectRepository.getInstance(),
-            that = this;
+            that = this,
+            CANVAS_WIDTH = Game.CANVAS_WIDTH;
 
         gameServerConn.on('change:connected', function(model, connected){
             if(connected){
@@ -616,6 +656,8 @@ class Game extends Backbone.Model {
         })
 
         gameServerConn.on('change:opponentConnected', function(model, connected){
+            var pos = model.get('opponentPosition')
+
             if(connected) {
                 objectRepo.addObject(new Models.Opponent(pos.x, pos.y))
 
@@ -670,13 +712,13 @@ class Game extends Backbone.Model {
         requestAnimFrame(runLoop)
 
         function runLoop(){
-            that.lastTime = currentTime
+            that.lastTime = that.currentTime
             that.currentTime = Date.now()
-            that.elapsedTime = currentTime - lastTime
+            that.elapsedTime = that.currentTime - that.lastTime
 
             if(!that.paused()){
-                update()
-                draw()
+                that.update()
+                that.draw()
             }
 
             requestAnimFrame(runLoop)
@@ -691,6 +733,8 @@ class Game extends Backbone.Model {
     }
 
     draw() {
+        var context = GameUI.instance.getCanvas()
+
         context.beginPath()
         context.clearRect(0,0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT)
         context.closePath()
@@ -710,6 +754,64 @@ class Game extends Backbone.Model {
 
 Game.CANVAS_WIDTH = 600
 Game.CANVAS_HEIGHT = 400
+
+class GameUI extends Backbone.View {
+
+    initialize() {
+        this.setElement('.game-ui')
+    }
+
+    start(){
+        var player = ObjectRepository.getInstance().get('player'),
+            opponent = ObjectRepository.getInstance().get('opponent'),
+            that = this,
+            $firstScore = this.$el.find(".first-score"),
+            $lastScore = this.$el.find(".last-score");
+
+        player.on('change:score', function(model, score){
+            if(Game.getInstance().isHost())
+                $firstScore.text(score)
+            else
+                $lastScore.text(score)
+        })
+
+        opponent.on('change:score', function(model, score){
+            if(Game.getInstance().isHost())
+                $lastScore.text(score)
+            else
+                $firstScore.text(score)
+        })
+
+        this.render()
+    }
+
+    render() {
+        var counter = 3,
+            timeId,
+            that = this,
+            $counter = this.$el.find(".counter");
+
+        this.$el.show()
+
+        timeId = setInterval(function(){
+            counter -= 1
+
+            $counter.find(".counter-number").text(counter)
+
+            if(counter <= 0){
+                clearInterval(timeId)
+                $counter.html("")
+                Game.getInstance().run()
+            }
+        }, 1000)
+    }
+
+    getCanvas() {
+        return this.$el.find("#canvas")[0].getContext("2d")
+    }
+}
+
+GameUI.instance = new GameUI()
 
 class ConnectDialog extends Backbone.View {
 
@@ -743,17 +845,28 @@ class ConnectDialog extends Backbone.View {
 
         serverConn.on('change:opponentConnected', function(model, connected) {
             that.$el.modal('hide')
+            setTimeout(function(){
+                GameUI.instance.start()
+            })
         })
     }
 
     showWaitingBox() {
         var $waitingBox =  this.$el.find(".waiting-for-opponent"),
+            $message = $waitingBox.find(".message"),
             that = this
 
-        $waitingBox.show().toggleClass("fade-in")
+
+        $waitingBox.show()
+        $waitingBox.find(".game-id").text(GameServerConnection.getInstance().get('gameId'))
+
+        $message
+        .toggleClass("fade-in")
+
+
 
         setInterval(function(){
-            $waitingBox.toggleClass("fade-in")
+            $message.toggleClass("fade-in")
         }, 1000)
     }
 
@@ -765,7 +878,7 @@ class ConnectDialog extends Backbone.View {
         Game.getInstance().set('nickname', $(e.target).val())
     }
 
-    setGameId() {
+    setGameId(e) {
         Game.getInstance().set('gameId', $(e.target).val())
     }
 

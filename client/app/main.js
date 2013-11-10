@@ -148,8 +148,10 @@ var Models;
     })();
     Models.Point = Point;
 
-    var GameObject = (function () {
+    var GameObject = (function (_super) {
+        __extends(GameObject, _super);
         function GameObject(point) {
+            _super.call(this);
             this.point = point;
         }
         GameObject.prototype.setPosition = function (x, y) {
@@ -174,7 +176,7 @@ var Models;
             return;
         };
         return GameObject;
-    })();
+    })(Backbone.Model);
     Models.GameObject = GameObject;
 
     var RectangularGameObject = (function (_super) {
@@ -306,7 +308,15 @@ else if (this.point.distanceFromPointCoords(this.point.getX(), Game.CANVAS_HEIGH
 
         CircularGameObject.prototype.collideWithLeftRightCanvas = function (x) {
             if (typeof x === "undefined") { x = 0; }
-            return this.point.distanceFromPointCoords(0) <= this.radius || this.point.distanceFromPointCoords(Game.CANVAS_WIDTH) <= this.radius;
+            return this.collideWithLeftCanvas() || this.collideWithRightCanvas();
+        };
+
+        CircularGameObject.prototype.collideWithLeftCanvas = function () {
+            return this.point.distanceFromPointCoords(0) <= this.radius;
+        };
+
+        CircularGameObject.prototype.collideWithRightCanvas = function () {
+            return this.point.distanceFromPointCoords(Game.CANVAS_WIDTH) <= this.radius;
         };
         return CircularGameObject;
     })(GameObject);
@@ -320,7 +330,6 @@ else if (this.point.distanceFromPointCoords(this.point.getX(), Game.CANVAS_HEIGH
             var that = this, serverConn = GameServerConnection.getInstance();
             this.MIN_Y = 0;
             this.VELOCITY = 500;
-            this.score = 0;
             this.id = "player";
 
             _super.call(this, new Models.Point(x, y), Drawing.Paddle.PADDLE_WIDTH, Drawing.Paddle.PADDLE_HEIGHT);
@@ -328,6 +337,10 @@ else if (this.point.distanceFromPointCoords(this.point.getX(), Game.CANVAS_HEIGH
 
             serverConn.sendPosition(_.pick(that.point, 'x', 'y'));
         }
+        Player.prototype.initialize = function () {
+            this.set('score', 0);
+        };
+
         Player.prototype.update = function () {
             var serverConn = GameServerConnection.getInstance(), moveDistance = this.getDistance(), move;
 
@@ -343,7 +356,12 @@ else
         };
 
         Player.prototype.getDistance = function () {
-            return (Game.getElapsedTime() / 1000) * this.VELOCITY;
+            return (Game.getInstance().getElapsedTime() / 1000) * this.VELOCITY;
+        };
+
+        Player.prototype.increaseScore = function () {
+            this.set('score', this.get('score') + 1);
+            GameServerConnection.getInstance().notifyScore('host', this.score);
         };
         return Player;
     })(RectangularGameObject);
@@ -365,6 +383,14 @@ else
                 that.setPosition(that.point.getX(), position.y);
             });
         }
+        Opponent.prototype.initialize = function () {
+            this.set('score', 0);
+        };
+
+        Opponent.prototype.increaseScore = function () {
+            this.set('score', this.get('score') + 1);
+            GameServerConnection.getInstance().notifyScore('guest', this.score);
+        };
         return Opponent;
     })(RectangularGameObject);
     Models.Opponent = Opponent;
@@ -389,21 +415,24 @@ else
 
             if (this.collideWithTopBottomCanvas()) {
                 this.yDirection = -this.yDirection;
-                this.calculateVelocity();
             } else if (player.collideWithCircleObject(this) || opponent.collideWithCircleObject(this)) {
-                this.xDirection = -this.xDirection;
-                this.calculateAngle();
-                this.calculateVelocity();
+                this.doXCalculations();
             } else if (this.collideWithLeftCanvas()) {
-                this.calculateVelocity();
                 opponent.increaseScore();
+                this.doXCalculations();
             } else if (this.collideWithRightCanvas()) {
-                this.xDirection = -this.xDirection;
                 player.increaseScore();
+                this.doXCalculations();
             }
 
+            this.calculateVelocity();
             this.move(this.vX, this.vY, true);
             serverConn.sendBallPosition(_.pick(this.point, 'x', 'y'));
+        };
+
+        Ball.prototype.doXCalculations = function () {
+            this.xDirection = -this.xDirection;
+            this.calculateAngle();
         };
 
         Ball.prototype.calculateAngle = function () {
@@ -416,7 +445,7 @@ else
         };
 
         Ball.prototype.calculateVelocity = function () {
-            var elapsedMs = (Game.getElapsedTime() / 1000);
+            var elapsedMs = (Game.getInstance().getElapsedTime() / 1000);
             this.vX = (elapsedMs * this.movementSpeed * Math.cos(this.vAngle)) * this.xDirection;
             this.vY = (elapsedMs * this.movementSpeed * Math.sin(this.vAngle)) * this.yDirection;
         };
@@ -531,6 +560,13 @@ var GameServerConnection = (function (_super) {
         return this.get('opponentConnected');
     };
 
+    GameServerConnection.prototype.notifyScore = function (role, score) {
+        if (role === "host")
+            this.socket.on('hostScore', score);
+else
+            this.socket.on('guestScore', score);
+    };
+
     GameServerConnection.prototype.setListeners = function () {
         var that = this;
 
@@ -541,14 +577,18 @@ var GameServerConnection = (function (_super) {
         });
 
         this.socket.on('opponentPosition', function (pos) {
+            that.set('opponentPosition', pos);
+
             if (!that.get('opponentConnected'))
                 that.set('opponentConnected', true);
-
-            that.set('opponentPosition', pos);
         });
 
         this.socket.on('ballPosition', function (pos) {
             that.set('ballPosition', pos);
+        });
+
+        this.socket.on('scoreInfo', function (scoreInfo) {
+            that.set('scoreInfo', scoreInfo);
         });
     };
     return GameServerConnection;
@@ -567,11 +607,11 @@ var Game = (function (_super) {
     };
 
     Game.prototype.getElapsedTime = function () {
-        return elapsedTime;
+        return this.elapsedTime;
     };
 
     Game.prototype.connect = function () {
-        var gameServerConn = GameServerConnection.getInstance(), objectRepo = ObjectRepository.getInstance(), that = this;
+        var gameServerConn = GameServerConnection.getInstance(), objectRepo = ObjectRepository.getInstance(), that = this, CANVAS_WIDTH = Game.CANVAS_WIDTH;
 
         gameServerConn.on('change:connected', function (model, connected) {
             if (connected) {
@@ -587,6 +627,8 @@ var Game = (function (_super) {
         });
 
         gameServerConn.on('change:opponentConnected', function (model, connected) {
+            var pos = model.get('opponentPosition');
+
             if (connected) {
                 objectRepo.addObject(new Models.Opponent(pos.x, pos.y));
 
@@ -639,13 +681,13 @@ var Game = (function (_super) {
         requestAnimFrame(runLoop);
 
         function runLoop() {
-            that.lastTime = currentTime;
+            that.lastTime = that.currentTime;
             that.currentTime = Date.now();
-            that.elapsedTime = currentTime - lastTime;
+            that.elapsedTime = that.currentTime - that.lastTime;
 
             if (!that.paused()) {
-                update();
-                draw();
+                that.update();
+                that.draw();
             }
 
             requestAnimFrame(runLoop);
@@ -660,6 +702,8 @@ var Game = (function (_super) {
     };
 
     Game.prototype.draw = function () {
+        var context = GameUI.instance.getCanvas();
+
         context.beginPath();
         context.clearRect(0, 0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT);
         context.closePath();
@@ -680,6 +724,61 @@ var Game = (function (_super) {
 
 Game.CANVAS_WIDTH = 600;
 Game.CANVAS_HEIGHT = 400;
+
+var GameUI = (function (_super) {
+    __extends(GameUI, _super);
+    function GameUI() {
+        _super.apply(this, arguments);
+    }
+    GameUI.prototype.initialize = function () {
+        this.setElement('.game-ui');
+    };
+
+    GameUI.prototype.start = function () {
+        var player = ObjectRepository.getInstance().get('player'), opponent = ObjectRepository.getInstance().get('opponent'), that = this, $firstScore = this.$el.find(".first-score"), $lastScore = this.$el.find(".last-score");
+
+        player.on('change:score', function (model, score) {
+            if (Game.getInstance().isHost())
+                $firstScore.text(score);
+else
+                $lastScore.text(score);
+        });
+
+        opponent.on('change:score', function (model, score) {
+            if (Game.getInstance().isHost())
+                $lastScore.text(score);
+else
+                $firstScore.text(score);
+        });
+
+        this.render();
+    };
+
+    GameUI.prototype.render = function () {
+        var counter = 3, timeId, that = this, $counter = this.$el.find(".counter");
+
+        this.$el.show();
+
+        timeId = setInterval(function () {
+            counter -= 1;
+
+            $counter.find(".counter-number").text(counter);
+
+            if (counter <= 0) {
+                clearInterval(timeId);
+                $counter.html("");
+                Game.getInstance().run();
+            }
+        }, 1000);
+    };
+
+    GameUI.prototype.getCanvas = function () {
+        return this.$el.find("#canvas")[0].getContext("2d");
+    };
+    return GameUI;
+})(Backbone.View);
+
+GameUI.instance = new GameUI();
 
 var ConnectDialog = (function (_super) {
     __extends(ConnectDialog, _super);
@@ -710,16 +809,22 @@ var ConnectDialog = (function (_super) {
 
         serverConn.on('change:opponentConnected', function (model, connected) {
             that.$el.modal('hide');
+            setTimeout(function () {
+                GameUI.instance.start();
+            });
         });
     };
 
     ConnectDialog.prototype.showWaitingBox = function () {
-        var $waitingBox = this.$el.find(".waiting-for-opponent"), that = this;
+        var $waitingBox = this.$el.find(".waiting-for-opponent"), $message = $waitingBox.find(".message"), that = this;
 
-        $waitingBox.show().toggleClass("fade-in");
+        $waitingBox.show();
+        $waitingBox.find(".game-id").text(GameServerConnection.getInstance().get('gameId'));
+
+        $message.toggleClass("fade-in");
 
         setInterval(function () {
-            $waitingBox.toggleClass("fade-in");
+            $message.toggleClass("fade-in");
         }, 1000);
     };
 
@@ -731,7 +836,7 @@ var ConnectDialog = (function (_super) {
         Game.getInstance().set('nickname', $(e.target).val());
     };
 
-    ConnectDialog.prototype.setGameId = function () {
+    ConnectDialog.prototype.setGameId = function (e) {
         Game.getInstance().set('gameId', $(e.target).val());
     };
 

@@ -1,7 +1,14 @@
 @import '../lib/bootstrap/less/bootstrap.less';
- 
+
+
 body {
     font-family: 'Open Sans', sans-serif;
+    overflow: hidden;
+    background: #efefef;
+}
+
+.navbar {
+    margin-bottom: 0;
 }
 
 #connect-dialog {
@@ -26,13 +33,21 @@ body {
 
             .waiting-for-opponent {
                 display: none;
-                padding: 30px 0;
+                padding: 0 0 30px 0;
                 text-align: center;
-                transition : opacity 1000ms linear;
-                opacity: 0.0;
 
-                &.fade-in {
-                    opacity : 1.0;
+                .alert {
+                    padding-left: 5px;
+                    font-size: 12px;
+                }
+
+                .message {
+                    transition : opacity 1000ms linear;
+                    opacity: 0.0;
+
+                    &.fade-in {
+                        opacity : 1.0;
+                    }
                 }
             }
         }
@@ -43,7 +58,21 @@ body {
     }
 }
 
-#canvas {
-    display: block;
-    margin: 100px auto;
+.game-ui {
+    display: none;
+
+    .scores {
+        font-size: 6em;
+        font-weight: lighter;
+
+        .counter {
+            font-size: 0.3em;
+            padding-top: 35px;
+        }
+    }
+
+    #canvas {
+        display: block;
+        margin: 0 auto;
+    }
 }

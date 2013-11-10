@@ -7,8 +7,7 @@
     "node-uuid": "~1.4.1",
     "socket.io": "~0.9.16",
     "underscore": "~1.5.1",
-    "socket.io-client": "~0.9.16",
-    "connect": "~2.8.7",
+    "connect": "~2.8.8",
     "backbone": "~1.1.0"
   },
   "devDependencies": {

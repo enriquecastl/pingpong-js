@@ -1,6 +1,9 @@
 var _ = require('underscore'),
     uuid = require('node-uuid'),
-    Backbone = require('backbone');
+    Backbone = require('backbone'),
+    connect = require('connect'),
+    http = require('http'),
+    io = require('socket.io');
 
 declare var $: any; 
 declare module Backbone {
@@ -149,50 +152,37 @@ class Game extends Backbone.Model {
 }
 
 class GameServer {
-    app = require('http').createServer(this.handler);
-    io = require('socket.io').listen(this.app);
-    fs = require('fs');
     games = [];
 
     constructor(){
-        var server = this;
+        var server,
+            connectInstance,
+            socketServer,
+            that = this;
 
-        GameServer.instance = server;
+        connectInstance = connect().use(connect.static(__dirname + '/../client/'))
+        server = http.createServer(connectInstance).listen(8001)
+        socketServer = io.listen(server)
 
-        this.app.listen(8001);
-        this.io.sockets.on('connection', function(socket) {
+        socketServer.sockets.on('connection', function(socket) {
             socket.on('newGame', function(data){
                 var host = new Player(data.nickname, socket);
-                server.games.push(Game.newGame(host));
-            });
+                that.games.push(Game.newGame(host));
+            })
 
             socket.on('connectToGame', function(data){
-                var game = server.findGameById(data.gameId);
+                var game = that.findGameById(data.gameId);
 
                 (game) ? game.setGuest(new Player(data.nickname, socket)) 
                 : socket.emit('connectError', "No game found");
-            });
-        });
+            })
+        })
     }
 
     findGameById(id) {
         return _.find(this.games, function(game){
             return game.get('id') === id;
-        });
-    }
-
-    handler(req, res) {
-        var fileName = __dirname + ((req.url === '/') ? '/../index.html' : '/../' + req.url);
-        
-        GameServer.instance.fs.readFile(fileName, function(err, data) {
-            if(err){
-                res.writeHead(500);
-                return res.end('Error loading index.html');
-            }
-
-            res.writeHead(200);
-            res.end(data);
-        });
+        })
     }
 }
 

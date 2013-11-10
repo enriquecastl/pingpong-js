@@ -46,15 +46,61 @@ var Player = (function (_super) {
         });
     };
 
-    Player.prototype.notifyOponentPosition = function (position) {
+    Player.prototype.notifyOpponentPosition = function (position) {
         this.socket.emit('opponentPosition', position);
-    };
-
-    Player.prototype.notifyBallPosition = function (position) {
-        this.socket.emit('ballPosition', position);
     };
     return Player;
 })(Backbone.Model);
+
+var Guest = (function (_super) {
+    __extends(Guest, _super);
+    function Guest() {
+        _super.apply(this, arguments);
+    }
+    Guest.prototype.initialize = function (nickname, socket) {
+        Player.prototype.initialize.apply(this, nickname, socket);
+    };
+
+    Guest.prototype.notifyBallPosition = function (position) {
+        this.socket.emit('ballPosition', position);
+    };
+
+    Guest.prototype.notifyScoreInfo = function (role, score) {
+        var scoreInfo = {};
+
+        scoreInfo[role] = score;
+        this.socket.emit('scoreInfo', scoreInfo);
+    };
+    return Guest;
+})(Player);
+
+var Host = (function (_super) {
+    __extends(Host, _super);
+    function Host() {
+        _super.apply(this, arguments);
+    }
+    Host.prototype.initialize = function (nickname, socket) {
+        var that = this;
+
+        Player.prototype.initialize.apply(this, nickname, socket);
+
+        socket.on('ballPosition', function (ballPosition) {
+            if (Utils.isValidPosition(ballPosition))
+                that.set('ballPosition', ballPosition);
+        });
+
+        socket.on('hostScore', function (hostScore) {
+            if (_.isNumber(hostScore))
+                that.set('hostScore', hostScore);
+        });
+
+        socket.on('guestScore', function (guestScore) {
+            if (_.isNumber(guestScore))
+                that.set('guestScore', guestScore);
+        });
+    };
+    return Host;
+})(Player);
 
 var Game = (function (_super) {
     __extends(Game, _super);
@@ -76,10 +122,19 @@ var Game = (function (_super) {
         this.set('id', uuid.v4().split('-')[0]);
         this.addPlayer("host", host);
 
-        host.socket.on('ballPosition', function (ballPosition) {
-            if (Utils.isValidPosition(ballPosition) && model.hasGuest()) {
+        host.on('change:ballPosition', function (model, pos) {
+            if (model.hasGuest())
                 model.guest.notifyBallPosition(ballPosition);
-            }
+        });
+
+        host.on('change:hostScore', function (model, score) {
+            if (model.hasGuest())
+                model.guest.notifyScoreInfo('guest', score);
+        });
+
+        host.on('change:guestScore', function (model, score) {
+            if (model.hasGuest())
+                model.guest.notifyScoreInfo('host', score);
         });
     };
 
@@ -107,7 +162,7 @@ else
         });
 
         if (playerPosition === "guest")
-            player.notifyOponentPosition(that["host"].get('position'));
+            player.notifyOpponentPosition(that["host"].get('position'));
 
         player.set('gameId', this.get('id'));
     };
@@ -116,7 +171,7 @@ else
         var opposite = this[this.opposites[playerPosition]];
 
         if (opposite instanceof Player)
-            opposite.notifyOponentPosition(position);
+            opposite.notifyOpponentPosition(position);
     };
     return Game;
 })(Backbone.Model);
@@ -132,14 +187,14 @@ var GameServer = (function () {
 
         socketServer.sockets.on('connection', function (socket) {
             socket.on('newGame', function (data) {
-                var host = new Player(data.nickname, socket);
+                var host = new Host(data.nickname, socket);
                 that.games.push(Game.newGame(host));
             });
 
             socket.on('connectToGame', function (data) {
                 var game = that.findGameById(data.gameId);
 
-                (game) ? game.setGuest(new Player(data.nickname, socket)) : socket.emit('connectError', "No game found");
+                (game) ? game.setGuest(new Guest(data.nickname, socket)) : socket.emit('connectError', "No game found");
             });
         });
     }

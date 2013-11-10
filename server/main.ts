@@ -55,38 +55,74 @@ module Utils {
 
 class Player extends Backbone.Model {
     initialize(nickname, socket) {
-        var model = this;
+        var model = this
 
         if(!_.isString(nickname) || nickname.length <= 0)
-            throw new Error("invalid nickname");
+            throw new Error("invalid nickname")
 
-        this.set('nickname', nickname);
-        this.socket = socket;
+        this.set('nickname', nickname)
+        this.socket = socket
 
         this.socket.on('newPosition', function(position){
             if(Utils.isValidPosition(position)){
-                console.log("setting position");
-                console.log(position);
-                model.set('position', position);
+                console.log("setting position")
+                console.log(position)
+                model.set('position', position)
             }else{
-                console.log("Invalid position");
-                console.log(position);
+                console.log("Invalid position")
+                console.log(position)
             }
         });
 
         this.on('change:gameId', function(model, gameId){
             model.socket.emit('connectionSuccess', {
                 gameId : gameId
-            });
-        });
+            })
+        })
     }
 
-    notifyOponentPosition(position) {
+    notifyOpponentPosition(position) {
         this.socket.emit('opponentPosition', position);
+    }
+}
+
+class Guest extends Player {
+    initialize(nickname, socket) {
+        Player.prototype.initialize.apply(this, nickname, socket)
     }
 
     notifyBallPosition(position) {
-        this.socket.emit('ballPosition', position);
+        this.socket.emit('ballPosition', position)
+    }
+
+    notifyScoreInfo(role, score) {
+        var scoreInfo = {}
+
+        scoreInfo[role] = score
+        this.socket.emit('scoreInfo', scoreInfo)
+    }
+}
+
+class Host extends Player {
+    initialize(nickname, socket) {
+        var that = this
+
+        Player.prototype.initialize.apply(this, nickname, socket)
+
+        socket.on('ballPosition', function(ballPosition){
+            if(Utils.isValidPosition(ballPosition))
+                that.set('ballPosition', ballPosition)
+        })
+
+        socket.on('hostScore', function(hostScore) {
+            if(_.isNumber(hostScore))
+                that.set('hostScore', hostScore)
+        })
+
+        socket.on('guestScore', function(guestScore) {
+            if(_.isNumber(guestScore))
+                that.set('guestScore', guestScore)
+        })
     }
 }
 
@@ -97,21 +133,31 @@ class Game extends Backbone.Model {
     };
 
     static newGame(host : Player){
-        var game = new Game(host);
-        return game;
+        var game = new Game(host)
+        return game
     }
 
     initialize(host : Player) {
-        var model = this;
+        var model = this
 
-        this.set('id', uuid.v4().split('-')[0]);
-        this.addPlayer("host", host);
+        this.set('id', uuid.v4().split('-')[0])
+        this.addPlayer("host", host)
 
-        host.socket.on('ballPosition', function(ballPosition){
-            if(Utils.isValidPosition(ballPosition) && model.hasGuest()){
-                model.guest.notifyBallPosition(ballPosition);
-            }
-        });
+        host.on('change:ballPosition', function(model, pos) {
+            if(model.hasGuest())
+                model.guest.notifyBallPosition(ballPosition)
+        })
+
+        //send the inverse scores since the guest guy it's expecting the opposite
+        host.on('change:hostScore', function(model, score) {
+            if(model.hasGuest())
+                model.guest.notifyScoreInfo('guest', score)
+        })
+
+        host.on('change:guestScore', function(model, score) {
+            if(model.hasGuest())
+                model.guest.notifyScoreInfo('host', score)
+        })
     }
 
     setGuest(guest : Player) {
@@ -123,31 +169,31 @@ class Game extends Backbone.Model {
     }
 
     addPlayer(playerPosition : string, player : Player) {
-        var that = this;
+        var that = this
 
         if(playerPosition !== "host" && playerPosition !== "guest")
-            throw new Error("Invalid player position");
+            throw new Error("Invalid player position")
 
         if(!(player instanceof Player))
             throw new Error("invalid "+ playerPosition +" player")
         else
-            that[playerPosition] = player;
+            that[playerPosition] = player
 
         player.on('change:position', function(model, position){
-            that.notifyOpposite(playerPosition, position);
-        });
+            that.notifyOpposite(playerPosition, position)
+        })
 
         if(playerPosition === "guest")
-            player.notifyOponentPosition(that["host"].get('position'));
+            player.notifyOpponentPosition(that["host"].get('position'))
 
-        player.set('gameId', this.get('id'));
+        player.set('gameId', this.get('id'))
     }
 
     notifyOpposite(playerPosition, position){
-        var opposite = this[this.opposites[playerPosition]];
+        var opposite = this[this.opposites[playerPosition]]
 
         if(opposite instanceof Player)
-            opposite.notifyOponentPosition(position);
+            opposite.notifyOpponentPosition(position)
     }
 }
 
@@ -166,14 +212,14 @@ class GameServer {
 
         socketServer.sockets.on('connection', function(socket) {
             socket.on('newGame', function(data){
-                var host = new Player(data.nickname, socket);
+                var host = new Host(data.nickname, socket);
                 that.games.push(Game.newGame(host));
             })
 
             socket.on('connectToGame', function(data){
                 var game = that.findGameById(data.gameId);
 
-                (game) ? game.setGuest(new Player(data.nickname, socket)) 
+                (game) ? game.setGuest(new Guest(data.nickname, socket)) 
                 : socket.emit('connectError', "No game found");
             })
         })
@@ -186,4 +232,4 @@ class GameServer {
     }
 }
 
-var server = new GameServer();
+var server = new GameServer()

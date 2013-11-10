@@ -361,6 +361,11 @@ module Models {
             this.setSprite(new Drawing.Paddle())
 
             serverConn.sendPosition(_.pick(that.point, 'x', 'y'))
+
+            serverConn.on('change:scoreInfo', function(model, scoreInfo){
+                if(scoreInfo.host)
+                    that.set('score', scoreInfo.host)
+            })
         }
 
         initialize() {
@@ -389,7 +394,7 @@ module Models {
 
         increaseScore() {
             this.set('score', this.get('score') + 1)
-            GameServerConnection.getInstance().notifyScore('host', this.score)
+            GameServerConnection.getInstance().notifyScore('host', this.get('score'))
         }
     }
 
@@ -407,6 +412,11 @@ module Models {
             serverConn.on('change:opponentPosition', function(model, position){
                 that.setPosition(that.point.getX(), position.y)
             })
+
+            serverConn.on('change:scoreInfo', function(model, scoreInfo){
+                if(scoreInfo.guest)
+                    that.set('score', scoreInfo.guest)
+            })
         }
 
         initialize() {
@@ -415,7 +425,7 @@ module Models {
 
         increaseScore() {
             this.set('score', this.get('score') + 1)
-            GameServerConnection.getInstance().notifyScore('guest', this.score)
+            GameServerConnection.getInstance().notifyScore('guest', this.get('score'))
         }
     }
 
@@ -591,9 +601,9 @@ class GameServerConnection extends Backbone.Model {
 
     notifyScore(role, score){
         if(role === "host")
-            this.socket.on('hostScore', score)
+            this.socket.emit('hostScore', score)
         else
-            this.socket.on('guestScore', score)
+            this.socket.emit('guestScore', score)
     }
 
     setListeners() {

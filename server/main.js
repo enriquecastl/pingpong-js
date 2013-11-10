@@ -58,7 +58,7 @@ var Guest = (function (_super) {
         _super.apply(this, arguments);
     }
     Guest.prototype.initialize = function (nickname, socket) {
-        Player.prototype.initialize.apply(this, nickname, socket);
+        Player.prototype.initialize.call(this, nickname, socket);
     };
 
     Guest.prototype.notifyBallPosition = function (position) {
@@ -82,7 +82,7 @@ var Host = (function (_super) {
     Host.prototype.initialize = function (nickname, socket) {
         var that = this;
 
-        Player.prototype.initialize.apply(this, nickname, socket);
+        Player.prototype.initialize.call(this, nickname, socket);
 
         socket.on('ballPosition', function (ballPosition) {
             if (Utils.isValidPosition(ballPosition))
@@ -122,17 +122,17 @@ var Game = (function (_super) {
         this.set('id', uuid.v4().split('-')[0]);
         this.addPlayer("host", host);
 
-        host.on('change:ballPosition', function (model, pos) {
+        host.on('change:ballPosition', function (m, pos) {
             if (model.hasGuest())
-                model.guest.notifyBallPosition(ballPosition);
+                model.guest.notifyBallPosition(pos);
         });
 
-        host.on('change:hostScore', function (model, score) {
+        host.on('change:hostScore', function (m, score) {
             if (model.hasGuest())
                 model.guest.notifyScoreInfo('guest', score);
         });
 
-        host.on('change:guestScore', function (model, score) {
+        host.on('change:guestScore', function (m, score) {
             if (model.hasGuest())
                 model.guest.notifyScoreInfo('host', score);
         });

@@ -88,7 +88,7 @@ class Player extends Backbone.Model {
 
 class Guest extends Player {
     initialize(nickname, socket) {
-        Player.prototype.initialize.apply(this, nickname, socket)
+        Player.prototype.initialize.call(this, nickname, socket)
     }
 
     notifyBallPosition(position) {
@@ -107,7 +107,7 @@ class Host extends Player {
     initialize(nickname, socket) {
         var that = this
 
-        Player.prototype.initialize.apply(this, nickname, socket)
+        Player.prototype.initialize.call(this, nickname, socket)
 
         socket.on('ballPosition', function(ballPosition){
             if(Utils.isValidPosition(ballPosition))
@@ -143,18 +143,18 @@ class Game extends Backbone.Model {
         this.set('id', uuid.v4().split('-')[0])
         this.addPlayer("host", host)
 
-        host.on('change:ballPosition', function(model, pos) {
+        host.on('change:ballPosition', function(m, pos) {
             if(model.hasGuest())
-                model.guest.notifyBallPosition(ballPosition)
+                model.guest.notifyBallPosition(pos)
         })
 
         //send the inverse scores since the guest guy it's expecting the opposite
-        host.on('change:hostScore', function(model, score) {
+        host.on('change:hostScore', function(m, score) {
             if(model.hasGuest())
                 model.guest.notifyScoreInfo('guest', score)
         })
 
-        host.on('change:guestScore', function(model, score) {
+        host.on('change:guestScore', function(m, score) {
             if(model.hasGuest())
                 model.guest.notifyScoreInfo('host', score)
         })

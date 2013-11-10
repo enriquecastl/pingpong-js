@@ -336,6 +336,11 @@ else if (this.point.distanceFromPointCoords(this.point.getX(), Game.CANVAS_HEIGH
             this.setSprite(new Drawing.Paddle());
 
             serverConn.sendPosition(_.pick(that.point, 'x', 'y'));
+
+            serverConn.on('change:scoreInfo', function (model, scoreInfo) {
+                if (scoreInfo.host)
+                    that.set('score', scoreInfo.host);
+            });
         }
         Player.prototype.initialize = function () {
             this.set('score', 0);
@@ -361,7 +366,7 @@ else
 
         Player.prototype.increaseScore = function () {
             this.set('score', this.get('score') + 1);
-            GameServerConnection.getInstance().notifyScore('host', this.score);
+            GameServerConnection.getInstance().notifyScore('host', this.get('score'));
         };
         return Player;
     })(RectangularGameObject);
@@ -382,6 +387,11 @@ else
             serverConn.on('change:opponentPosition', function (model, position) {
                 that.setPosition(that.point.getX(), position.y);
             });
+
+            serverConn.on('change:scoreInfo', function (model, scoreInfo) {
+                if (scoreInfo.guest)
+                    that.set('score', scoreInfo.guest);
+            });
         }
         Opponent.prototype.initialize = function () {
             this.set('score', 0);
@@ -389,7 +399,7 @@ else
 
         Opponent.prototype.increaseScore = function () {
             this.set('score', this.get('score') + 1);
-            GameServerConnection.getInstance().notifyScore('guest', this.score);
+            GameServerConnection.getInstance().notifyScore('guest', this.get('score'));
         };
         return Opponent;
     })(RectangularGameObject);
@@ -562,9 +572,9 @@ var GameServerConnection = (function (_super) {
 
     GameServerConnection.prototype.notifyScore = function (role, score) {
         if (role === "host")
-            this.socket.on('hostScore', score);
+            this.socket.emit('hostScore', score);
 else
-            this.socket.on('guestScore', score);
+            this.socket.emit('guestScore', score);
     };
 
     GameServerConnection.prototype.setListeners = function () {

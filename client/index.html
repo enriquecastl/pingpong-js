@@ -6,29 +6,66 @@
         <link rel="stylesheet" type="text/css" href="css/app.css" />
     </head>
     <body>
-        <div id="menu">
-            <form id="connect-menu">
-                Connect to game 
-                <input required placeholder="Game ID" type="text" id="gameId" />
-                <input required placeholder="Nickname" type="text" id="nickname" />
-                <button type="submit" id="connect">Connect</button>
-                <button type="button" id="newGame">New Game</button>
-                <button type="button" class="hide" id="existingGame">Existing Game</button>
-            </form>
-            <div id="game-info">
-                <label>Game ID:</label> <span class="gameId"></span>
-                <label>Nickname:</label> <span class="nickname"></span>
+        <nav class="navbar navbar-default" role="navigation">
+            <div class="navbar-header">
+                    <a class="navbar-brand" href="#">Pong 5!</a>
             </div>
-            <span id="error"></span>
+        </nav>
+        <div id="connect-dialog" class="modal fade" tabindex="-1" role="dialog">
+            <div class="modal-dialog">
+                <form class="modal-content" role="form">
+                    <div class="modal-header">
+                        <h4 class="modal-title">Comenzar a jugar</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="connect-screen">
+                            <ul class="nav nav-pills">
+                                <li class="active"><a href="#new-game" data-toggle="tab">Nuevo Juego</a></li>
+                                <li><a href="#connect" data-toggle="tab">Juego Existente</a></li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane fade in active" id="new-game">
+                                    <div class="form-group">
+                                        <label for="nickname">Nickname</label>
+                                        <input type="text" name="nickname" required 
+                                            class="form-control input-sm nickname" />
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="connect">
+                                    <div class="form-group">
+                                        <label for="game-id">Código del Juego</label>
+                                        <input type="text" name="game-id" 
+                                            class="form-control input-sm" id="game-id" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="existing-nickname">Nickname</label>
+                                        <input type="text" name="existing-nickname" 
+                                            class="form-control input-sm nickname" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="waiting-for-opponent">
+                            <div>
+                                Esperando Oponente
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit"  class="submitter hide">Conectar</button>
+                        <button type="button" class="btn btn-connect btn-default">Conectar</button>
+                    </div>
+                </form>
+            </div>
         </div>
         <canvas id="canvas" width="600" height="400"></canvas>
-        <script type="text/javascript" src="client/lib/socket.io/lib/socket.io.js"></script>
+        <script type="text/javascript" src="lib/socket.io-client/dist/socket.io.js"></script>
         <!-- bower:js -->
-        <script type="text/javascript" src="client/lib/jquery/jquery.js"></script>
-        <script type="text/javascript" src="client/lib/underscore/underscore.js"></script>
-        <script type="text/javascript" src="client/lib/backbone/backbone.js"></script>
-        <script type="text/javascript" src="client/lib/bootstrap/dist/js/bootstrap.js"></script>
+        <script type="text/javascript" src="lib/jquery/jquery.js"></script>
+        <script type="text/javascript" src="lib/underscore/underscore.js"></script>
+        <script type="text/javascript" src="lib/backbone/backbone.js"></script>
+        <script type="text/javascript" src="lib/bootstrap/dist/js/bootstrap.js"></script>
         <!-- endbower -->
-        <script src="client/app/main.js"></script>
+        <script src="app/main.js"></script>
     </body>
 </html>

@@ -4,41 +4,46 @@ body {
     font-family: 'Open Sans', sans-serif;
 }
 
-#menu {
-    box-sizing: border-box;
-    background: #ddd;
-    height : 30px;
-    padding: 5px 3px;
-    width:100%;
+#connect-dialog {
+    .modal-dialog {
+        width: 350px;
+        padding-top: 100px;
+
+        .modal-body {
+            padding-top: 5px;
+            padding-bottom: 5px;
+
+            .nav {
+                padding: 0px 5%;
+                margin: 5px 0 15px 0;
+
+                li {
+                    a {
+                        padding: 5px 15px;
+                    }
+                }
+            }
+
+            .waiting-for-opponent {
+                display: none;
+                padding: 30px 0;
+                text-align: center;
+                transition : opacity 1000ms linear;
+                opacity: 0.0;
+
+                &.fade-in {
+                    opacity : 1.0;
+                }
+            }
+        }
+
+        .modal-footer {
+            margin-top: 0;
+        }
+    }
 }
 
 #canvas {
     display: block;
     margin: 100px auto;
-}
-
-.hide {
-    display : none;
-}
-
-#connect-menu {
-    float: left;
-}
-
-#game-info {
-    display: none;
-    font-size: 0.9em;
-}
-
-#game-info label {
-    font-weight: bold;
-}
-
-#error {
-    color: red;
-    font-size: 0.9em;
-    float: left;
-    margin-left: 5px;
-    position: relative;
-    top:3px;
 }

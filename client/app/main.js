@@ -523,6 +523,14 @@ var GameServerConnection = (function (_super) {
         this.socket.emit('ballPosition', pos);
     };
 
+    GameServerConnection.prototype.isConnected = function () {
+        return this.get('connected');
+    };
+
+    GameServerConnection.prototype.isOpponentConnected = function () {
+        return this.get('opponentConnected');
+    };
+
     GameServerConnection.prototype.setListeners = function () {
         var that = this;
 
@@ -533,6 +541,9 @@ var GameServerConnection = (function (_super) {
         });
 
         this.socket.on('opponentPosition', function (pos) {
+            if (!that.get('opponentConnected'))
+                that.set('opponentConnected', true);
+
             that.set('opponentPosition', pos);
         });
 
@@ -543,104 +554,112 @@ var GameServerConnection = (function (_super) {
     return GameServerConnection;
 })(Backbone.Model);
 
-var Game;
-(function (Game) {
-    Game.CANVAS_WIDTH = 600;
-    Game.CANVAS_HEIGHT = 400;
-
-    var context, lastTime, currentTime, paused = false, running = false, isHost = false, gameId, elapsedTime = 0;
-
-    function getElapsedTime() {
-        return elapsedTime;
+var Game = (function (_super) {
+    __extends(Game, _super);
+    function Game() {
+        _super.apply(this, arguments);
     }
-    Game.getElapsedTime = getElapsedTime;
+    Game.getInstance = function () {
+        if (Game.instance == null)
+            Game.instance = new Game();
 
-    function init(gameId, nickname) {
-        if (typeof gameId === "undefined") { gameId = null; }
-        if (typeof nickname === "undefined") { nickname = ""; }
-        var gameServerConn = GameServerConnection.getInstance(), objectRepo = ObjectRepository.getInstance();
+        return Game.instance;
+    };
 
-        isHost = _.isNull(gameId);
-        context = $("#canvas")[0].getContext("2d");
+    Game.prototype.getElapsedTime = function () {
+        return elapsedTime;
+    };
+
+    Game.prototype.connect = function () {
+        var gameServerConn = GameServerConnection.getInstance(), objectRepo = ObjectRepository.getInstance(), that = this;
 
         gameServerConn.on('change:connected', function (model, connected) {
             if (connected) {
-                (isHost) ? objectRepo.addObject(new Models.Player(0, 0)) : objectRepo.addObject(new Models.Player(Game.CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH, 0));
-
-                if (gameId === null)
+                if (that.isHost()) {
+                    objectRepo.addObject(new Models.Player(0, 0));
                     objectRepo.addObject(new Models.Ball());
+                } else {
+                    objectRepo.addObject(new Models.Player(CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH, 0));
+                }
 
-                gameId = gameServerConn.get('gameId');
+                that.set('gameId', gameServerConn.get('gameId'));
             }
         });
 
-        gameServerConn.on('change:opponentPosition', function (model, pos) {
-            if (!running) {
+        gameServerConn.on('change:opponentConnected', function (model, connected) {
+            if (connected) {
                 objectRepo.addObject(new Models.Opponent(pos.x, pos.y));
 
                 if (!objectRepo.get("ball"))
                     objectRepo.addObject(new Models.RemoteBall());
-
-                running = true;
-                run();
             }
         });
 
-        (gameId === null) ? gameServerConn.newGame(nickname) : gameServerConn.connectToGame(gameId, nickname);
-    }
-    Game.init = init;
+        this.isHost() ? gameServerConn.newGame(this.get('nickname')) : gameServerConn.connectToGame(this.get('gameId'), this.get('nickname'));
+    };
 
-    function pause() {
-        paused = true;
-    }
-    Game.pause = pause;
+    Game.prototype.isHost = function () {
+        return this.get('gameId') == null;
+    };
 
-    function unpaused() {
-        paused = false;
-    }
-    Game.unpaused = unpaused;
+    Game.prototype.paused = function () {
+        return this.get('paused');
+    };
 
-    function restart() {
+    Game.prototype.pause = function () {
+        this.set('paused', true);
+    };
+
+    Game.prototype.unpause = function () {
+        this.set('paused', false);
+    };
+
+    Game.prototype.elapsedTime = function () {
+        return this.elapsedTime;
+    };
+
+    Game.prototype.restart = function () {
         var objectRepo = ObjectRepository.getInstance();
 
-        paused = true;
+        this.pause();
 
         setTimeout(function () {
             objectRepo.clean();
             objectRepo.addObject(new Models.Player());
             objectRepo.addObject(new Models.Opponent());
             objectRepo.addObject(new Models.Ball());
-            paused = false;
+            this.unpause();
         }, 2000);
-    }
-    Game.restart = restart;
+    };
 
-    function run() {
-        lastTime = currentTime = Date.now();
+    Game.prototype.run = function () {
+        var that = this;
+
+        this.lastTime = this.currentTime = Date.now();
         requestAnimFrame(runLoop);
 
         function runLoop() {
-            lastTime = currentTime;
-            currentTime = Date.now();
-            elapsedTime = currentTime - lastTime;
+            that.lastTime = currentTime;
+            that.currentTime = Date.now();
+            that.elapsedTime = currentTime - lastTime;
 
-            if (!paused) {
+            if (!that.paused()) {
                 update();
                 draw();
             }
 
             requestAnimFrame(runLoop);
         }
-    }
+    };
 
-    function update() {
+    Game.prototype.update = function () {
         var objects = ObjectRepository.getInstance().getObjects();
 
         for (var i = 0; i < objects.length; i++)
             objects[i].update();
-    }
+    };
 
-    function draw() {
+    Game.prototype.draw = function () {
         context.beginPath();
         context.clearRect(0, 0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT);
         context.closePath();
@@ -655,63 +674,85 @@ var Game;
             if (sprite)
                 sprite.draw(context);
         }
+    };
+    return Game;
+})(Backbone.Model);
+
+Game.CANVAS_WIDTH = 600;
+Game.CANVAS_HEIGHT = 400;
+
+var ConnectDialog = (function (_super) {
+    __extends(ConnectDialog, _super);
+    function ConnectDialog() {
+        this.events = events = {
+            'change .nickname': 'setNickname',
+            'change #game-id': 'setGameId',
+            'click .btn-connect': 'connect',
+            'click a[href=#new-game]': 'setValidators',
+            'click a[href=#connect]': 'setValidators'
+        };
+        _super.call(this);
     }
-})(Game || (Game = {}));
+    ConnectDialog.prototype.initialize = function () {
+        var that = this, timeId, serverConn = GameServerConnection.getInstance();
 
-var GameUI = (function () {
-    function GameUI() {
-        var that = this, existingGame = true, gameServer = GameServerConnection.getInstance();
+        this.delegateEvents();
+        this.setElement('#connect-dialog');
+        this.render();
 
-        this.$canvasContainer = $("#canvas-container");
-        this.$gameId = $("#gameId");
-        this.$nickname = $("#nickname");
-        this.$connect = $("#connect");
-        this.$newGame = $("#newGame");
-        this.$existingGame = $("#existingGame");
-        this.$connectMenu = $("#connect-menu");
-        this.$gameInfo = $("#game-info");
-        this.$error = $("#error");
-
-        $(document).find("button").on('click', function () {
-            that.$error.text("");
-        });
-
-        this.$newGame.on('click', function () {
-            that.$gameId.removeAttr("required").hide();
-            that.$newGame.hide();
-            that.$existingGame.show();
-            existingGame = false;
-        });
-
-        this.$existingGame.on('click', function () {
-            that.$gameId.attr("required", "required").show();
-            that.$newGame.show();
-            that.$existingGame.hide();
-            existingGame = true;
-        });
-
-        this.$connect.on('click', function (e) {
-            e.preventDefault();
-            Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val());
-        });
-
-        gameServer.on('change:connected', function (model, connected) {
-            that.$connectMenu.hide();
-            that.$gameInfo.find(".gameId").text(gameServer.get('gameId'));
-            that.$gameInfo.find(".nickname").text(that.$nickname.val());
-            that.$gameInfo.show();
-        });
-
-        function processError(actionData) {
-            if (_.isString(actionData.error)) {
-                that.$error.text(actionData.error);
-                return true;
+        serverConn.on('change:connected', function (model, connected) {
+            if (connected) {
+                that.$el.find(".connect-screen").fadeOut(function () {
+                    that.showWaitingBox();
+                });
             }
+        });
 
-            return false;
-        }
-    }
-    return GameUI;
-})();
+        serverConn.on('change:opponentConnected', function (model, connected) {
+            that.$el.modal('hide');
+        });
+    };
 
-new GameUI();
+    ConnectDialog.prototype.showWaitingBox = function () {
+        var $waitingBox = this.$el.find(".waiting-for-opponent"), that = this;
+
+        $waitingBox.show().toggleClass("fade-in");
+
+        setInterval(function () {
+            $waitingBox.toggleClass("fade-in");
+        }, 1000);
+    };
+
+    ConnectDialog.prototype.render = function () {
+        this.$el.modal('show');
+    };
+
+    ConnectDialog.prototype.setNickname = function (e) {
+        Game.getInstance().set('nickname', $(e.target).val());
+    };
+
+    ConnectDialog.prototype.setGameId = function () {
+        Game.getInstance().set('gameId', $(e.target).val());
+    };
+
+    ConnectDialog.prototype.connect = function (e) {
+        var valid = true;
+
+        this.$el.find("input").each(function () {
+            valid = valid && this.checkValidity();
+        });
+
+        if (!valid)
+            this.$el.find(".submitter").click();
+else
+            Game.getInstance().connect();
+    };
+
+    ConnectDialog.prototype.setValidators = function (e) {
+        this.$el.find(".tab-pane").find("input").attr("required", null);
+        this.$el.find($(e.target).attr("href")).find("input").attr("required", "required");
+    };
+    return ConnectDialog;
+})(Backbone.View);
+
+new ConnectDialog();

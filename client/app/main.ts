@@ -553,6 +553,14 @@ class GameServerConnection extends Backbone.Model {
         this.socket.emit('ballPosition', pos)
     }
 
+    isConnected() {
+        return this.get('connected')
+    }
+
+    isOpponentConnected(){
+        return this.get('opponentConnected')
+    }
+
     setListeners() {
         var that = this
 
@@ -563,6 +571,9 @@ class GameServerConnection extends Backbone.Model {
         })
 
         this.socket.on('opponentPosition', function(pos) {
+            if(!that.get('opponentConnected'))
+                that.set('opponentConnected', true)
+
             that.set('opponentPosition', pos)
         })
 
@@ -572,90 +583,98 @@ class GameServerConnection extends Backbone.Model {
     }
 }
 
-module Game {
-    export var CANVAS_WIDTH = 600
-    export var CANVAS_HEIGHT = 400
+class Game extends Backbone.Model {
+    static instance
 
-    var context,
-        lastTime,
-        currentTime,
-        paused = false,
-        running = false,
-        isHost = false,
-        gameId,
-        elapsedTime : number = 0
+    static getInstance() {
+        if(Game.instance == null)
+            Game.instance = new Game()
 
-    export function getElapsedTime(){
+        return Game.instance
+    }
+
+    getElapsedTime(){
         return elapsedTime
     }
 
-    export function init(gameId = null, nickname = "") {
+    connect() {
         var gameServerConn = GameServerConnection.getInstance(),
-            objectRepo = ObjectRepository.getInstance()
-
-        isHost = _.isNull(gameId)
-        context = $("#canvas")[0].getContext("2d")
+            objectRepo = ObjectRepository.getInstance(),
+            that = this;
 
         gameServerConn.on('change:connected', function(model, connected){
             if(connected){
-
-                (isHost) ? objectRepo.addObject(new Models.Player(0, 0)) :
-                objectRepo.addObject(new Models.Player(CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH, 0))
-
-                if(gameId === null)
+                if(that.isHost()) {
+                    objectRepo.addObject(new Models.Player(0, 0))
                     objectRepo.addObject(new Models.Ball())
-
-                gameId = gameServerConn.get('gameId')
+                } else {
+                    objectRepo.addObject(new Models.Player(CANVAS_WIDTH - Drawing.Paddle.PADDLE_WIDTH, 0))
+                }
+                    
+                that.set('gameId', gameServerConn.get('gameId'))
             }
         })
 
-        gameServerConn.on('change:opponentPosition', function(model, pos){        
-            if(!running){
+        gameServerConn.on('change:opponentConnected', function(model, connected){
+            if(connected) {
                 objectRepo.addObject(new Models.Opponent(pos.x, pos.y))
 
                 if(!objectRepo.get("ball"))
                     objectRepo.addObject(new Models.RemoteBall())
-
-                running = true
-                run()
             }
         });
 
-        (gameId === null) ? gameServerConn.newGame(nickname) : gameServerConn.connectToGame(gameId, nickname)
+        this.isHost() ? 
+        gameServerConn.newGame(this.get('nickname')) : 
+        gameServerConn.connectToGame(this.get('gameId'), this.get('nickname'))
     }
 
-    export function pause() {
-        paused = true
+    isHost() {
+        return this.get('gameId') == null
     }
 
-    export function unpaused() {
-        paused = false
+    paused() {
+        return this.get('paused')
     }
 
-    export function restart() {
+    pause() {
+        this.set('paused', true)
+    }
+
+    unpause() {
+        this.set('paused', false)
+    }
+
+    elapsedTime() {
+        return this.elapsedTime
+    }
+
+    restart() {
         var objectRepo = ObjectRepository.getInstance()
 
-        paused = true
+        this.pause()
 
         setTimeout(function(){
             objectRepo.clean()
             objectRepo.addObject(new Models.Player())
             objectRepo.addObject(new Models.Opponent())
             objectRepo.addObject(new Models.Ball())
-            paused = false
+            this.unpause()
         }, 2000)
     }
 
-    function run() {
-        lastTime = currentTime = Date.now()
+    run() {
+        var that = this
+
+        this.lastTime = this.currentTime = Date.now()
         requestAnimFrame(runLoop)
 
         function runLoop(){
-            lastTime = currentTime
-            currentTime = Date.now()
-            elapsedTime = currentTime - lastTime
+            that.lastTime = currentTime
+            that.currentTime = Date.now()
+            that.elapsedTime = currentTime - lastTime
 
-            if(!paused){
+            if(!that.paused()){
                 update()
                 draw()
             }
@@ -664,19 +683,19 @@ module Game {
         }
     }
 
-    function update() {
+    update() {
         var objects = ObjectRepository.getInstance().getObjects()
 
         for(var i = 0; i < objects.length; i++) 
             objects[i].update()
     }
 
-    function draw() {
+    draw() {
         context.beginPath()
-        context.clearRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT)
+        context.clearRect(0,0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT)
         context.closePath()
         context.fillStyle = "#000"
-        context.fillRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT)
+        context.fillRect(0,0, Game.CANVAS_WIDTH, Game.CANVAS_HEIGHT)
 
         var objects = ObjectRepository.getInstance().getObjects()
 
@@ -689,70 +708,84 @@ module Game {
     }
 }
 
-class GameUI {
-    $canvasContainer
-    $gameId
-    $nickname
-    $connect
-    $newGame
-    $existingGame
-    $error
+Game.CANVAS_WIDTH = 600
+Game.CANVAS_HEIGHT = 400
+
+class ConnectDialog extends Backbone.View {
 
     constructor() {
-        var that = this,
-            existingGame = true,
-            gameServer = GameServerConnection.getInstance()
-
-        this.$canvasContainer = $("#canvas-container")
-        this.$gameId = $("#gameId")
-        this.$nickname = $("#nickname")
-        this.$connect = $("#connect")
-        this.$newGame = $("#newGame")
-        this.$existingGame = $("#existingGame")
-        this.$connectMenu = $("#connect-menu")
-        this.$gameInfo = $("#game-info")
-        this.$error = $("#error")
-
-        $(document).find("button").on('click', function(){
-            that.$error.text("")
-        })
- 
-        this.$newGame.on('click', function(){
-            that.$gameId.removeAttr("required").hide()
-            that.$newGame.hide()
-            that.$existingGame.show()
-            existingGame = false
-        })
-
-        this.$existingGame.on('click', function(){
-            that.$gameId.attr("required", "required").show()
-            that.$newGame.show()
-            that.$existingGame.hide()
-            existingGame = true
-        })
-
-        this.$connect.on('click', function(e){
-            e.preventDefault()
-            Game.init((existingGame ? that.$gameId.val() : null), that.$nickname.val())
-        })
-
-        gameServer.on('change:connected', function(model, connected){
-            that.$connectMenu.hide()
-            that.$gameInfo.find(".gameId").text(gameServer.get('gameId'))
-            that.$gameInfo.find(".nickname").text(that.$nickname.val())
-            that.$gameInfo.show()
-
-        })
-
-        function processError(actionData){
-            if(_.isString(actionData.error)){
-                that.$error.text(actionData.error)
-                return true
-            }
-
-            return false
+        this.events = events = {
+            'change .nickname' : 'setNickname',
+            'change #game-id' : 'setGameId',
+            'click .btn-connect' : 'connect',
+            'click a[href=#new-game]' : 'setValidators',
+            'click a[href=#connect]' : 'setValidators'
         }
+        super()
+    }
+
+    initialize(){
+        var that = this,
+            timeId,
+            serverConn = GameServerConnection.getInstance();
+
+        this.delegateEvents()
+        this.setElement('#connect-dialog')
+        this.render();
+
+        serverConn.on('change:connected', function(model, connected) {
+            if(connected){
+                that.$el.find(".connect-screen").fadeOut(function(){
+                    that.showWaitingBox()             
+                })
+            }
+        })
+
+        serverConn.on('change:opponentConnected', function(model, connected) {
+            that.$el.modal('hide')
+        })
+    }
+
+    showWaitingBox() {
+        var $waitingBox =  this.$el.find(".waiting-for-opponent"),
+            that = this
+
+        $waitingBox.show().toggleClass("fade-in")
+
+        setInterval(function(){
+            $waitingBox.toggleClass("fade-in")
+        }, 1000)
+    }
+
+    render(){
+        this.$el.modal('show')
+    }
+
+    setNickname(e){
+        Game.getInstance().set('nickname', $(e.target).val())
+    }
+
+    setGameId() {
+        Game.getInstance().set('gameId', $(e.target).val())
+    }
+
+    connect(e){
+        var valid = true;
+
+        this.$el.find("input").each(function(){
+            valid = valid && this.checkValidity();
+        })
+
+        if(!valid)
+            this.$el.find(".submitter").click()
+        else 
+            Game.getInstance().connect()
+    }
+
+    setValidators(e) {
+        this.$el.find(".tab-pane").find("input").attr("required", null)
+        this.$el.find($(e.target).attr("href")).find("input").attr("required", "required")
     }
 }
 
-new GameUI()
+new ConnectDialog()

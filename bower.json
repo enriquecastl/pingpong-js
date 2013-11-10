@@ -20,7 +20,7 @@
     "underscore": "~1.5.2",
     "backbone": "~1.1.0",
     "jquery": "~2.0.3",
-    "socket.io": "~0.9.15",
-    "bootstrap": "~3.0.2"
+    "bootstrap": "~3.0.2",
+    "socket.io-client": "~0.9.16"
   }
 }

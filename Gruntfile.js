@@ -58,6 +58,8 @@ module.exports = function(grunt){
                 // If your file paths shouldn't contain a certain
                 // portion of a url, it can be excluded
 
+                ignorePath : 'client/',
+
                 // Customize how your stylesheets are included on
                 // your page.
                 //

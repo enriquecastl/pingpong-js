@@ -686,7 +686,13 @@ class Game extends Backbone.Model {
         });
 
         gameServerConn.on('change:pauseStatus', function(model, status){
-            (status) ? that.pause() : that.unpause()
+            if(status) { 
+                that.pause() 
+                that.set("pausedRemotely", true)
+            } else { 
+                that.unpause()
+            }
+
         })
 
         this.isHost() ? 
@@ -706,6 +712,7 @@ class Game extends Backbone.Model {
         console.log("trying to pause the game. Current game pause status: " + this.paused())
         if(!this.paused() && this.started) {
             this.set('paused', true)
+            this.set("pausedRemotely", false)
             console.log("game paused successfully " + this.paused())
 
             if(sendToServer)

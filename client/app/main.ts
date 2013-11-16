@@ -558,7 +558,7 @@ class GameServerConnection extends Backbone.Model {
     socket
 
     newGame(nickname) {
-        this.socket = io.connect('http://localhost:8001')
+        this.socket = io.connect(location.origin)
         this.setListeners()
 
         this.socket.emit('newGame', {
@@ -570,7 +570,7 @@ class GameServerConnection extends Backbone.Model {
     connectToGame(gameId, nickname) {
         var that = this
 
-        this.socket = io.connect('http://localhost:8001')
+        this.socket = io.connect(location.origin)
         this.setListeners()
 
         this.socket.on('connectError', function(message){

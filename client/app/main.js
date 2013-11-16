@@ -530,7 +530,7 @@ var GameServerConnection = (function (_super) {
     };
 
     GameServerConnection.prototype.newGame = function (nickname) {
-        this.socket = io.connect('http://localhost:8001');
+        this.socket = io.connect(location.origin);
         this.setListeners();
 
         this.socket.emit('newGame', {
@@ -541,7 +541,7 @@ var GameServerConnection = (function (_super) {
     GameServerConnection.prototype.connectToGame = function (gameId, nickname) {
         var that = this;
 
-        this.socket = io.connect('http://localhost:8001');
+        this.socket = io.connect(location.origin);
         this.setListeners();
 
         this.socket.on('connectError', function (message) {

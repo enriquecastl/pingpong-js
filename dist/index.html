@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Pong5!</title>
+        <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400,600,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="css/app.css"/>
+    </head>
+    <body>
+        <nav class="navbar navbar-default navbar-inverse" role="navigation">
+            <div class="navbar-header">
+                    <a class="navbar-brand" href="#">Pong5!</a>
+            </div>
+        </nav>
+        <div id="connect-dialog" data-backdrop="static" data-keyboard="false" class="modal fade" tabindex="-1" role="dialog">
+            <div class="modal-dialog">
+                <form class="modal-content" role="form">
+                    <div class="modal-header">
+                        <h4 class="modal-title">Start Playing</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="connect-screen">
+                            <ul class="nav nav-pills">
+                                <li class="active"><a href="#new-game" data-toggle="tab">New Game</a></li>
+                                <li><a href="#connect" data-toggle="tab">Existing Game</a></li>
+                            </ul>
+                            <div class="tab-content">
+                                <div class="tab-pane fade in active" id="new-game">
+                                    <div class="form-group">
+                                        <label for="nickname">Nickname</label>
+                                        <input type="text" name="nickname" required 
+                                            class="form-control input-sm nickname" />
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="connect">
+                                    <div class="form-group">
+                                        <label for="game-id">Game Code</label>
+                                        <input type="text" name="game-id" 
+                                            class="form-control input-sm" id="game-id" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="existing-nickname">Nickname</label>
+                                        <input type="text" name="existing-nickname" 
+                                            class="form-control input-sm nickname" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="waiting-for-opponent">
+                            <div class="alert alert-info">
+                                Share this code with your opponent to start the game!
+                                <br />
+                                <strong class="game-id"></strong>
+                            </div>
+                            <div class="message">
+                                <div>
+                                    Waiting for your opponent
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit"  class="submitter hide">Connect</button>
+                        <button type="button" class="btn btn-connect btn-default">Connect</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="game-ui">
+            <div class="row scores">
+                <div class="col-md-offset-2 first-score col-md-3 text-left">
+                    0
+                </div>
+                <div class="col-md-2 text-center counter">
+                    Iniciando en <span class="counter-number">3</span>
+                </div>
+                <div class="col-md-3 last-score text-right">
+                    0
+                </div>
+                <div class="col-md-2"></div>
+            </div>
+            <canvas id="canvas" width="600" height="400"></canvas>
+        </div>
+        <script src="js/app.js"></script>
+    </body>
+</html>

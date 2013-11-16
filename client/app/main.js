@@ -562,6 +562,11 @@ var GameServerConnection = (function (_super) {
         this.socket.emit('ballPosition', pos);
     };
 
+    GameServerConnection.prototype.updatePauseStatus = function (status) {
+        this.socket.emit('pauseStatus', status);
+        console.log("Send client's pause status to the server " + status);
+    };
+
     GameServerConnection.prototype.isConnected = function () {
         return this.get('connected');
     };
@@ -599,6 +604,11 @@ else
 
         this.socket.on('scoreInfo', function (scoreInfo) {
             that.set('scoreInfo', scoreInfo);
+        });
+
+        this.socket.on('pauseStatus', function (status) {
+            console.log("received pause from the server: status " + status);
+            that.set('pauseStatus', status);
         });
     };
     return GameServerConnection;
@@ -647,6 +657,10 @@ var Game = (function (_super) {
             }
         });
 
+        gameServerConn.on('change:pauseStatus', function (model, status) {
+            (status) ? that.pause() : that.unpause();
+        });
+
         this.isHost() ? gameServerConn.newGame(this.get('nickname')) : gameServerConn.connectToGame(this.get('gameId'), this.get('nickname'));
     };
 
@@ -658,12 +672,27 @@ var Game = (function (_super) {
         return this.get('paused');
     };
 
-    Game.prototype.pause = function () {
-        this.set('paused', true);
+    Game.prototype.pause = function (sendToServer) {
+        console.log("trying to pause the game. Current game pause status: " + this.paused());
+        if (!this.paused() && this.started) {
+            this.set('paused', true);
+            console.log("game paused successfully " + this.paused());
+
+            if (sendToServer)
+                GameServerConnection.getInstance().updatePauseStatus(true);
+        }
     };
 
-    Game.prototype.unpause = function () {
-        this.set('paused', false);
+    Game.prototype.unpause = function (sendToServer) {
+        console.log("trying to unpause the game. Current game pause status: " + this.paused());
+
+        if (this.paused() && this.started) {
+            this.set('paused', false);
+            console.log("game unpaused successfully " + this.paused());
+
+            if (sendToServer)
+                GameServerConnection.getInstance().updatePauseStatus(false);
+        }
     };
 
     Game.prototype.elapsedTime = function () {
@@ -687,6 +716,7 @@ var Game = (function (_super) {
     Game.prototype.run = function () {
         var that = this;
 
+        this.started = true;
         this.lastTime = this.currentTime = Date.now();
         requestAnimFrame(runLoop);
 
@@ -741,7 +771,40 @@ var GameUI = (function (_super) {
         _super.apply(this, arguments);
     }
     GameUI.prototype.initialize = function () {
+        var view = this, game = Game.getInstance(), focused = true;
+
         this.setElement('.game-ui');
+
+        window.onfocus = function () {
+            focused = true;
+
+            if (!game.paused())
+                return;
+
+            console.log("window gain focus");
+            game.unpause(true);
+            if (!game.paused())
+                view.hideStatusMessage();
+        };
+
+        window.onblur = function (e) {
+            focused = false;
+
+            if (game.paused())
+                return;
+
+            console.log("window lost focus");
+            game.pause(true);
+            if (game.paused())
+                view.showStatusMessage("Game is paused");
+        };
+
+        game.on('change:paused', function (model, paused) {
+            if (paused && model.get('pausedRemotely'))
+                view.showStatusMessage("The game has been paused by your opponent. Waiting for him...");
+else if (!paused)
+                view.hideStatusMessage();
+        });
     };
 
     GameUI.prototype.start = function () {
@@ -762,6 +825,14 @@ else
         });
 
         this.render();
+    };
+
+    GameUI.prototype.showStatusMessage = function (message) {
+        this.$el.find(".status-message").text(message).addClass("visible");
+    };
+
+    GameUI.prototype.hideStatusMessage = function () {
+        this.$el.find(".status-message").removeClass("visible");
     };
 
     GameUI.prototype.render = function () {

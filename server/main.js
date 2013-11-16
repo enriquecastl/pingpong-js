@@ -29,14 +29,12 @@ var Player = (function (_super) {
         this.socket = socket;
 
         this.socket.on('newPosition', function (position) {
-            if (Utils.isValidPosition(position)) {
-                console.log("setting position");
-                console.log(position);
+            if (Utils.isValidPosition(position))
                 model.set('position', position);
-            } else {
-                console.log("Invalid position");
-                console.log(position);
-            }
+        });
+
+        this.socket.on('pauseStatus', function (status) {
+            model.set('pauseStatus', status);
         });
 
         this.on('change:gameId', function (model, gameId) {
@@ -48,6 +46,10 @@ var Player = (function (_super) {
 
     Player.prototype.notifyOpponentPosition = function (position) {
         this.socket.emit('opponentPosition', position);
+    };
+
+    Player.prototype.notifyPauseStatus = function (pauseStatus) {
+        this.socket.emit('pauseStatus', pauseStatus);
     };
     return Player;
 })(Backbone.Model);
@@ -158,7 +160,12 @@ else
             that[playerPosition] = player;
 
         player.on('change:position', function (model, position) {
-            that.notifyOpposite(playerPosition, position);
+            that.notifyOppositePosition(playerPosition, position);
+        });
+
+        player.on('change:pauseStatus', function (model, status) {
+            console.log("updated pause status " + status);
+            that.notifyOppositePauseStatus(playerPosition, status);
         });
 
         if (playerPosition === "guest")
@@ -167,11 +174,22 @@ else
         player.set('gameId', this.get('id'));
     };
 
-    Game.prototype.notifyOpposite = function (playerPosition, position) {
-        var opposite = this[this.opposites[playerPosition]];
+    Game.prototype.notifyOppositePauseStatus = function (playerPosition, status) {
+        var opposite = this.getOpposite(playerPosition);
+
+        if (opposite instanceof Player)
+            opposite.notifyPauseStatus(status);
+    };
+
+    Game.prototype.notifyOppositePosition = function (playerPosition, position) {
+        var opposite = this.getOpposite(playerPosition);
 
         if (opposite instanceof Player)
             opposite.notifyOpponentPosition(position);
+    };
+
+    Game.prototype.getOpposite = function (playerPosition) {
+        return this[this.opposites[playerPosition]];
     };
     return Game;
 })(Backbone.Model);
@@ -185,6 +203,7 @@ var GameServer = (function () {
 
         server = http.createServer(connectInstance).listen((process.env.PORT || 8001));
         socketServer = io.listen(server);
+        socketServer.set('log level', 1);
 
         socketServer.sockets.on('connection', function (socket) {
             socket.on('newGame', function (data) {

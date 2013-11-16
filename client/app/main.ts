@@ -564,7 +564,6 @@ class GameServerConnection extends Backbone.Model {
         this.socket.emit('newGame', {
             nickname : nickname
         })
-
     }
 
     connectToGame(gameId, nickname) {
@@ -589,6 +588,11 @@ class GameServerConnection extends Backbone.Model {
 
     sendBallPosition(pos) {
         this.socket.emit('ballPosition', pos)
+    }
+
+    updatePauseStatus(status) {
+        this.socket.emit('pauseStatus', status)
+        console.log("Send client's pause status to the server " + status)
     }
 
     isConnected() {
@@ -628,6 +632,11 @@ class GameServerConnection extends Backbone.Model {
 
         this.socket.on('scoreInfo', function(scoreInfo) {
             that.set('scoreInfo', scoreInfo)
+        })
+
+        this.socket.on('pauseStatus', function(status){
+            console.log("received pause from the server: status " + status)
+            that.set('pauseStatus', status)
         })
     }
 }
@@ -676,6 +685,10 @@ class Game extends Backbone.Model {
             }
         });
 
+        gameServerConn.on('change:pauseStatus', function(model, status){
+            (status) ? that.pause() : that.unpause()
+        })
+
         this.isHost() ? 
         gameServerConn.newGame(this.get('nickname')) : 
         gameServerConn.connectToGame(this.get('gameId'), this.get('nickname'))
@@ -689,12 +702,27 @@ class Game extends Backbone.Model {
         return this.get('paused')
     }
 
-    pause() {
-        this.set('paused', true)
+    pause(sendToServer) {
+        console.log("trying to pause the game. Current game pause status: " + this.paused())
+        if(!this.paused() && this.started) {
+            this.set('paused', true)
+            console.log("game paused successfully " + this.paused())
+
+            if(sendToServer)
+                GameServerConnection.getInstance().updatePauseStatus(true);
+        }
     }
 
-    unpause() {
-        this.set('paused', false)
+    unpause(sendToServer) {
+        console.log("trying to unpause the game. Current game pause status: " + this.paused())
+
+        if(this.paused() && this.started){
+            this.set('paused', false)
+            console.log("game unpaused successfully " + this.paused())
+            
+            if(sendToServer)
+                GameServerConnection.getInstance().updatePauseStatus(false);
+        }
     }
 
     elapsedTime() {
@@ -718,6 +746,7 @@ class Game extends Backbone.Model {
     run() {
         var that = this
 
+        this.started = true
         this.lastTime = this.currentTime = Date.now()
         requestAnimFrame(runLoop)
 
@@ -768,7 +797,38 @@ Game.CANVAS_HEIGHT = 400
 class GameUI extends Backbone.View {
 
     initialize() {
+        var view = this,
+            game = Game.getInstance(),
+            focused = true
+
         this.setElement('.game-ui')
+
+        window.onfocus = function(){
+            focused = true
+        
+            if(!game.paused()) return;
+
+            console.log("window gain focus")
+            game.unpause(true)
+            if(!game.paused()) view.hideStatusMessage();
+        };
+
+        window.onblur = function(e){
+            focused = false
+
+            if(game.paused()) return;
+
+            console.log("window lost focus")
+            game.pause(true)
+            if(game.paused()) view.showStatusMessage("Game is paused");
+        }
+
+        game.on('change:paused', function(model, paused) {
+            if(paused && model.get('pausedRemotely'))
+                view.showStatusMessage("The game has been paused by your opponent. Waiting for him...")
+            else if(!paused)
+                view.hideStatusMessage()
+        })
     }
 
     start(){
@@ -793,6 +853,14 @@ class GameUI extends Backbone.View {
         })
 
         this.render()
+    }
+
+    showStatusMessage(message) {
+        this.$el.find(".status-message").text(message).addClass("visible");
+    }
+
+    hideStatusMessage() {
+        this.$el.find(".status-message").removeClass("visible");
     }
 
     render() {

@@ -64,15 +64,13 @@ class Player extends Backbone.Model {
         this.socket = socket
 
         this.socket.on('newPosition', function(position){
-            if(Utils.isValidPosition(position)){
-                console.log("setting position")
-                console.log(position)
+            if(Utils.isValidPosition(position))
                 model.set('position', position)
-            }else{
-                console.log("Invalid position")
-                console.log(position)
-            }
-        });
+        })
+
+        this.socket.on('pauseStatus', function(status) {
+            model.set('pauseStatus', status)
+        })
 
         this.on('change:gameId', function(model, gameId){
             model.socket.emit('connectionSuccess', {
@@ -83,6 +81,10 @@ class Player extends Backbone.Model {
 
     notifyOpponentPosition(position) {
         this.socket.emit('opponentPosition', position);
+    }
+
+    notifyPauseStatus(pauseStatus) {
+        this.socket.emit('pauseStatus', pauseStatus);
     }
 }
 
@@ -180,8 +182,13 @@ class Game extends Backbone.Model {
             that[playerPosition] = player
 
         player.on('change:position', function(model, position){
-            that.notifyOpposite(playerPosition, position)
+            that.notifyOppositePosition(playerPosition, position)
         })
+
+        player.on('change:pauseStatus', function(model, status) {
+            console.log("updated pause status " + status)
+            that.notifyOppositePauseStatus(playerPosition, status)
+        }) 
 
         if(playerPosition === "guest")
             player.notifyOpponentPosition(that["host"].get('position'))
@@ -189,11 +196,22 @@ class Game extends Backbone.Model {
         player.set('gameId', this.get('id'))
     }
 
-    notifyOpposite(playerPosition, position){
-        var opposite = this[this.opposites[playerPosition]]
+    notifyOppositePauseStatus(playerPosition, status) {
+        var opposite = this.getOpposite(playerPosition)
+
+        if(opposite instanceof Player)
+            opposite.notifyPauseStatus(status)
+    }
+
+    notifyOppositePosition(playerPosition, position){
+        var opposite = this.getOpposite(playerPosition)
 
         if(opposite instanceof Player)
             opposite.notifyOpponentPosition(position)
+    }
+
+    getOpposite(playerPosition) {
+        return this[this.opposites[playerPosition]] 
     }
 }
 
@@ -211,6 +229,7 @@ class GameServer {
 
         server = http.createServer(connectInstance).listen((process.env.PORT || 8001))
         socketServer = io.listen(server)
+        socketServer.set('log level', 1)
 
         socketServer.sockets.on('connection', function(socket) {
             socket.on('newGame', function(data){

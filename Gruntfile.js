@@ -44,6 +44,10 @@ module.exports = function(grunt){
             less : {
                 files : ['client/less/*.less'],
                 tasks : ['less:prod']
+            },
+            build : {
+                files : ['client/**/*.js', 'client/**/*.css', 'client/index.html'],
+                tasks : ['build']
             }
         },
         'bower-install': {
@@ -93,7 +97,7 @@ module.exports = function(grunt){
         },
         copy : {
             generate : {
-                files : [
+                files : [ 
                     { expand : true, cwd : 'client', src : ['index.html'], dest : 'dist/' },
                     { expand : true, cwd : 'client', src : ['img/*'], dest : 'dist/' }
                 ]

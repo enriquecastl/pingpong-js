@@ -181,7 +181,8 @@ var GameServer = (function () {
         this.games = [];
         var server, connectInstance, socketServer, that = this;
 
-        connectInstance = connect().use(connect.static(__dirname + '/../client/'));
+        connectInstance = connect().use(connect.static(__dirname + '/../dist/'));
+
         server = http.createServer(connectInstance).listen((process.env.PORT || 8001));
         socketServer = io.listen(server);
 

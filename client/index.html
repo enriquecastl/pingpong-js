@@ -3,7 +3,9 @@
     <head>
         <title>Pong5!</title>
         <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400,600,300' rel='stylesheet' type='text/css'>
+        <!-- build:css css/app.css -->
         <link rel="stylesheet" type="text/css" href="css/app.css" />
+        <!-- endbuild -->
     </head>
     <body>
         <nav class="navbar navbar-default navbar-inverse" role="navigation">
@@ -80,6 +82,7 @@
             </div>
             <canvas id="canvas" width="600" height="400"></canvas>
         </div>
+        <!-- build:js js/app.js -->
         <script type="text/javascript" src="lib/socket.io-client/dist/socket.io.js"></script>
         <!-- bower:js -->
         <script type="text/javascript" src="lib/jquery/jquery.js"></script>
@@ -88,5 +91,6 @@
         <script type="text/javascript" src="lib/bootstrap/dist/js/bootstrap.js"></script>
         <!-- endbower -->
         <script src="app/main.js"></script>
+        <!-- endbuild -->
     </body>
 </html>

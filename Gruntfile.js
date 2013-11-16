@@ -64,19 +64,62 @@ module.exports = function(grunt){
                 // your page.
                 //
                 //   default: '<link rel="stylesheet" href="{{filePath}}" />'
-                cssPattern: '<link href="{{filePath}}" rel="stylesheet">',
+                cssPattern: '<link href="{{filePath}}" rel="stylesheet" type="text/css">',
 
                 // Customize how your <script>s are included into
                 // your HTML file.
                 //
                 //   default: '<script src="{{filePath}}"></script>'
-                jsPattern: '<script type="text/javascript" src="{{filePath}}"></script>'
+                jsPattern: '<script type="text/javascript" src="{{filePath}}" type="text/javascript"></script>'
+            }
+        },
+        clean : {
+            tmp : {
+                src : [".tmp"]
+            },
+            dist : {
+                src : [".tmp", "dist"]
+            }
+        },
+        'useminPrepare' : {
+            html : 'client/index.html',
+            options : {
+                dest : 'dist',
+                root : 'client'
+            }
+        },
+        usemin : {
+            html : 'dist/index.html'
+        },
+        copy : {
+            generate : {
+                files : [
+                    { expand : true, cwd : 'client', src : ['index.html'], dest : 'dist/' },
+                    { expand : true, cwd : 'client', src : ['img/*'], dest : 'dist/' }
+                ]
             }
         }
     });
 
+    grunt.registerTask('build', [
+        'clean:dist',
+        'useminPrepare',
+        'concat',
+        'uglify',
+        'copy:generate',
+        'cssmin',
+        'usemin',
+        'clean:tmp'
+    ]);
+    
+    grunt.loadNpmTasks('grunt-usemin');
+    grunt.loadNpmTasks('grunt-contrib-concat');
+    grunt.loadNpmTasks('grunt-contrib-uglify');
     grunt.loadNpmTasks('grunt-bower-install');
     grunt.loadNpmTasks('grunt-contrib-less');
     grunt.loadNpmTasks('grunt-contrib-watch');
+    grunt.loadNpmTasks('grunt-contrib-cssmin');
+    grunt.loadNpmTasks('grunt-contrib-clean');
+    grunt.loadNpmTasks('grunt-contrib-copy');
     grunt.loadNpmTasks('grunt-typescript');
 };
